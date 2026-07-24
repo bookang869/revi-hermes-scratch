@@ -8,6 +8,16 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
+      - name: Cache Hermes install
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.hermes
+            ~/.local/bin
+            ~/.local/share/uv
+            ~/.cache/ms-playwright
+          key: hermes-agent-install-${{ runner.os }}-v1
+
       - name: Install Hermes Agent
         run: curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
 
