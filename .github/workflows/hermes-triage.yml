@@ -23,7 +23,7 @@ jobs:
         run: echo "mode routed to PR_REVIEW (raw client_payload.mode='${{ github.event.client_payload.mode }}')"
       # ponytail: stub -- diagnose/patch/PR steps land in PLAN Phase 3.2-3.6
       - name: PR_REVIEW pipeline (stub)
-        run: echo "TODO Phase 3.2-3.6: escalation client, digest report, test detection, Hermes wrapper, PR promotion"
+        run: echo "TODO Phase 3.2-3.6 - escalation client, digest report, test detection, Hermes wrapper, PR promotion"
 
   # AUTONOMOUS is the narrow positive match -- only exact "AUTONOMOUS" routes
   # here, so an invalid mode can never reach the merge-capable token.
@@ -42,4 +42,4 @@ jobs:
         run: echo "mode routed to AUTONOMOUS"
       # ponytail: stub -- boot/smoke/test-grid/merge steps land in PLAN Phase 4
       - name: AUTONOMOUS pipeline (stub)
-        run: echo "TODO Phase 4: app boot smoke test, test grid, API-signed merge"
+        run: echo "TODO Phase 4 - app boot smoke test, test grid, API-signed merge"
