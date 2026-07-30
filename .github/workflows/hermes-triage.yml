@@ -29,14 +29,29 @@ jobs:
       ALERT_ID: ${{ github.event.client_payload.alert_id }}
       ERROR_SUMMARY: ${{ github.event.client_payload.error_summary }}
       LOG_CONTEXT: ${{ github.event.client_payload.log_context }}
+      REVI_MODE: PR_REVIEW
     steps:
+      - uses: actions/checkout@v4
       - name: Confirm routing
         run: echo "mode routed to PR_REVIEW (raw client_payload.mode='${{ github.event.client_payload.mode }}')"
       - name: Confirm Hermes preinstalled
         run: hermes --version
-      # ponytail: stub -- diagnose/patch/PR steps land in PLAN Phase 3.2-3.6
+      # ponytail: stub -- diagnose/patch/PR steps land in PLAN Phase 3.4-3.6
       - name: PR_REVIEW pipeline (stub)
-        run: echo "TODO Phase 3.2-3.6 - escalation client, digest report, test detection, Hermes wrapper, PR promotion"
+        run: echo "TODO Phase 3.4-3.6 - test detection, Hermes wrapper, PR promotion"
+      # Phase 3.3: always() so a run reports its outcome whether the steps
+      # above succeeded or failed -- PLAN cross-cutting rule #5, no silent
+      # failures. REVI_DIGEST_WEBHOOK_URL is unset until Phase 5.1 (tunnel)
+      # exists, so this step will fail on a real dispatch until then -- that
+      # is expected, not a bug: there is nowhere for it to reach yet.
+      - name: Report digest entry
+        if: always()
+        env:
+          REVI_DIGEST_WEBHOOK_URL: ${{ secrets.REVI_DIGEST_WEBHOOK_URL }}
+          REVI_WEBHOOK_SECRET: ${{ secrets.REVI_WEBHOOK_SECRET }}
+          OUTCOME: STUB
+          SUMMARY: "Phase 3 stub run -- no real diagnose/patch/PR logic yet (lands in 3.4-3.6)"
+        run: bash scripts/report-digest.sh
 
   # AUTONOMOUS is the narrow positive match -- only exact "AUTONOMOUS" routes
   # here, so an invalid mode can never reach the merge-capable token.
@@ -59,7 +74,9 @@ jobs:
       ALERT_ID: ${{ github.event.client_payload.alert_id }}
       ERROR_SUMMARY: ${{ github.event.client_payload.error_summary }}
       LOG_CONTEXT: ${{ github.event.client_payload.log_context }}
+      REVI_MODE: AUTONOMOUS
     steps:
+      - uses: actions/checkout@v4
       - name: Confirm routing
         run: echo "mode routed to AUTONOMOUS"
       - name: Confirm Hermes preinstalled
@@ -67,3 +84,13 @@ jobs:
       # ponytail: stub -- boot/smoke/test-grid/merge steps land in PLAN Phase 4
       - name: AUTONOMOUS pipeline (stub)
         run: echo "TODO Phase 4 - app boot smoke test, test grid, API-signed merge"
+      # Phase 3.3: same always()-guarded digest report as pr_review -- see
+      # comment there re: REVI_DIGEST_WEBHOOK_URL depending on Phase 5.1.
+      - name: Report digest entry
+        if: always()
+        env:
+          REVI_DIGEST_WEBHOOK_URL: ${{ secrets.REVI_DIGEST_WEBHOOK_URL }}
+          REVI_WEBHOOK_SECRET: ${{ secrets.REVI_WEBHOOK_SECRET }}
+          OUTCOME: STUB
+          SUMMARY: "Phase 3 stub run -- no real boot/smoke/merge logic yet (lands in Phase 4)"
+        run: bash scripts/report-digest.sh
