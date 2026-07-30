@@ -22,6 +22,15 @@ export TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # shell string interpolation into JSON is a correctness/injection risk here.
 PAYLOAD="$(python3 -c '
 import json, os, sys
+
+# ponytail: flat cap, receiver-agnostic safety net -- Phase 3.5s prompt
+# should ask Hermes to stay concise so this rarely triggers; revisit with a
+# tighter/looser number if a specific paging tools real limit differs.
+MAX_FIELD_LEN = 2000
+
+def cap(s):
+    return s if len(s) <= MAX_FIELD_LEN else s[:MAX_FIELD_LEN] + " [truncated]"
+
 json.dump({
     "service_name": os.environ["SERVICE_NAME"],
     "alert_id": os.environ["ALERT_ID"],
@@ -29,8 +38,8 @@ json.dump({
     "reason": os.environ["REASON"],
     "revi_mode": os.environ["REVI_MODE"],
     "pr_url": os.environ.get("PR_URL", ""),
-    "error_summary": os.environ["ERROR_SUMMARY"],
-    "confidence_note": os.environ.get("CONFIDENCE_NOTE", ""),
+    "error_summary": cap(os.environ["ERROR_SUMMARY"]),
+    "confidence_note": cap(os.environ.get("CONFIDENCE_NOTE", "")),
     "attempts_made": int(os.environ["ATTEMPTS_MADE"]),
     "timestamp": os.environ["TIMESTAMP"],
 }, sys.stdout)
