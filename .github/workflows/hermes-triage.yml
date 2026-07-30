@@ -12,6 +12,17 @@ jobs:
   pr_review:
     if: github.event.client_payload.mode != 'AUTONOMOUS'
     runs-on: ubuntu-latest
+    # Phase 3.1b: image is pre-baked with Hermes + build deps (GHCR, built by
+    # build-hermes-image.yml) so every dispatch pays a fast image pull instead
+    # of the ~87s from-scratch installer cost measured in Phase 0.
+    container:
+      image: ghcr.io/bookang869/revi-hermes-scratch/hermes-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: read
     env:
       GITHUB_TOKEN_HERMES: ${{ secrets.GITHUB_TOKEN_HERMES }}
       TRACE_ID: ${{ github.event.client_payload.trace_id }}
@@ -21,6 +32,8 @@ jobs:
     steps:
       - name: Confirm routing
         run: echo "mode routed to PR_REVIEW (raw client_payload.mode='${{ github.event.client_payload.mode }}')"
+      - name: Confirm Hermes preinstalled
+        run: hermes --version
       # ponytail: stub -- diagnose/patch/PR steps land in PLAN Phase 3.2-3.6
       - name: PR_REVIEW pipeline (stub)
         run: echo "TODO Phase 3.2-3.6 - escalation client, digest report, test detection, Hermes wrapper, PR promotion"
@@ -30,6 +43,15 @@ jobs:
   autonomous:
     if: github.event.client_payload.mode == 'AUTONOMOUS'
     runs-on: ubuntu-latest
+    # Phase 3.1b: same pre-baked image as pr_review -- see comment there.
+    container:
+      image: ghcr.io/bookang869/revi-hermes-scratch/hermes-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: read
     env:
       GITHUB_TOKEN_HERMES: ${{ secrets.GITHUB_TOKEN_HERMES }}
       GITHUB_TOKEN_PROD: ${{ secrets.GITHUB_TOKEN_PROD }}
@@ -40,6 +62,8 @@ jobs:
     steps:
       - name: Confirm routing
         run: echo "mode routed to AUTONOMOUS"
+      - name: Confirm Hermes preinstalled
+        run: hermes --version
       # ponytail: stub -- boot/smoke/test-grid/merge steps land in PLAN Phase 4
       - name: AUTONOMOUS pipeline (stub)
         run: echo "TODO Phase 4 - app boot smoke test, test grid, API-signed merge"

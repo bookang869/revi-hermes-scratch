@@ -1,0 +1,41 @@
+name: build-hermes-image
+
+on:
+  schedule:
+    - cron: '0 6 * * 1' # weekly, Monday 06:00 UTC
+  workflow_dispatch: {}
+
+env:
+  IMAGE: ghcr.io/bookang869/revi-hermes-scratch/hermes-runner
+
+jobs:
+  build-and-smoke-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t hermes-runner-candidate .
+
+      - name: Smoke test - hermes --version
+        run: docker run --rm hermes-runner-candidate hermes --version
+
+      - name: Smoke test - trivial hermes -z call
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: docker run --rm -e ANTHROPIC_API_KEY hermes-runner-candidate hermes --provider anthropic --model claude-sonnet-5 -z "Respond with only the word OK, nothing else."
+
+      # ponytail: broken build/smoke test never reaches this step, so :latest
+      # only ever points at something that has proven it boots and answers.
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Tag and push
+        run: |
+          docker tag hermes-runner-candidate ${{ env.IMAGE }}:latest
+          docker tag hermes-runner-candidate ${{ env.IMAGE }}:${{ github.run_id }}
+          docker push ${{ env.IMAGE }}:latest
+          docker push ${{ env.IMAGE }}:${{ github.run_id }}
