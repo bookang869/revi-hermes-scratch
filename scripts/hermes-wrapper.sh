@@ -153,12 +153,14 @@ while [[ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]]; do
   JSON="$(printf '%s' "$RAW_OUTPUT" | extract_json)"
   if [[ -z "$JSON" ]]; then
     echo "attempt $ATTEMPT: no JSON found in agent output -- failed attempt"
+    echo "agent output (first 1000 chars): $(printf '%s' "$RAW_OUTPUT" | head -c 1000)"
     continue
   fi
 
   PARSED="$(printf '%s' "$JSON" | parse_response)"
   if [[ $? -ne 0 || -z "$PARSED" ]]; then
     echo "attempt $ATTEMPT: malformed or incomplete JSON -- failed attempt"
+    echo "agent output (first 1000 chars): $(printf '%s' "$RAW_OUTPUT" | head -c 1000)"
     continue
   fi
 

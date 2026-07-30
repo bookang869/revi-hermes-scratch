@@ -43,6 +43,7 @@ jobs:
       - name: Hermes repair loop
         id: wrapper
         env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           REVI_ESCALATION_WEBHOOK_URL: ${{ secrets.REVI_ESCALATION_WEBHOOK_URL }}
           REVI_ESCALATION_WEBHOOK_SECRET: ${{ secrets.REVI_ESCALATION_WEBHOOK_SECRET }}
         run: bash scripts/hermes-wrapper.sh
