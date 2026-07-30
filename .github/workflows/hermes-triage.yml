@@ -27,6 +27,7 @@ jobs:
       GITHUB_TOKEN_HERMES: ${{ secrets.GITHUB_TOKEN_HERMES }}
       TRACE_ID: ${{ github.event.client_payload.trace_id }}
       ALERT_ID: ${{ github.event.client_payload.alert_id }}
+      SERVICE_NAME: ${{ github.event.client_payload.service_name }}
       ERROR_SUMMARY: ${{ github.event.client_payload.error_summary }}
       LOG_CONTEXT: ${{ github.event.client_payload.log_context }}
       REVI_MODE: PR_REVIEW
@@ -36,9 +37,19 @@ jobs:
         run: echo "mode routed to PR_REVIEW (raw client_payload.mode='${{ github.event.client_payload.mode }}')"
       - name: Confirm Hermes preinstalled
         run: hermes --version
-      # ponytail: stub -- diagnose/patch/PR steps land in PLAN Phase 3.4-3.6
-      - name: PR_REVIEW pipeline (stub)
-        run: echo "TODO Phase 3.4-3.6 - test detection, Hermes wrapper, PR promotion"
+      # Phase 3.5: diagnose + fix + sibling test, gated on independent
+      # compile/test verification, up to 3 attempts, escalates on exhaustion.
+      # PR promotion on a gated pass lands in Phase 3.6 (still a stub below).
+      - name: Hermes repair loop
+        id: wrapper
+        env:
+          REVI_ESCALATION_WEBHOOK_URL: ${{ secrets.REVI_ESCALATION_WEBHOOK_URL }}
+          REVI_ESCALATION_WEBHOOK_SECRET: ${{ secrets.REVI_ESCALATION_WEBHOOK_SECRET }}
+        run: bash scripts/hermes-wrapper.sh
+      # ponytail: stub -- PR push/open + PR_READY escalation land in PLAN 3.6
+      - name: PR_REVIEW promotion (stub)
+        if: steps.wrapper.outputs.outcome == 'PASSED'
+        run: echo "TODO Phase 3.6 - push hermes/hotfix-${{ github.event.client_payload.alert_id }}, open PR, escalate PR_READY"
       # Phase 3.3: always() so a run reports its outcome whether the steps
       # above succeeded or failed -- PLAN cross-cutting rule #5, no silent
       # failures. REVI_DIGEST_WEBHOOK_URL is unset until Phase 5.1 (tunnel)
@@ -49,8 +60,8 @@ jobs:
         env:
           REVI_DIGEST_WEBHOOK_URL: ${{ secrets.REVI_DIGEST_WEBHOOK_URL }}
           REVI_WEBHOOK_SECRET: ${{ secrets.REVI_WEBHOOK_SECRET }}
-          OUTCOME: STUB
-          SUMMARY: "Phase 3 stub run -- no real diagnose/patch/PR logic yet (lands in 3.4-3.6)"
+          OUTCOME: ${{ steps.wrapper.outputs.outcome || 'FAILED' }}
+          SUMMARY: ${{ steps.wrapper.outputs.summary || 'Hermes repair loop step did not produce an outcome' }}
         run: bash scripts/report-digest.sh
 
   # AUTONOMOUS is the narrow positive match -- only exact "AUTONOMOUS" routes
@@ -72,6 +83,7 @@ jobs:
       GITHUB_TOKEN_PROD: ${{ secrets.GITHUB_TOKEN_PROD }}
       TRACE_ID: ${{ github.event.client_payload.trace_id }}
       ALERT_ID: ${{ github.event.client_payload.alert_id }}
+      SERVICE_NAME: ${{ github.event.client_payload.service_name }}
       ERROR_SUMMARY: ${{ github.event.client_payload.error_summary }}
       LOG_CONTEXT: ${{ github.event.client_payload.log_context }}
       REVI_MODE: AUTONOMOUS

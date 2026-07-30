@@ -80,6 +80,11 @@ run_case "L2 monorepo (nearest wins over root decoy)" "$TMP/monorepo" \
 run_case "L1 override beats L2" "$TMP/l2-go" "internal/handlers/user.go" "jest" \
   "LAYER=L1" "TEST_FRAMEWORK=jest" "TEST_COMMAND=npx jest"
 
+### L1: "none" override (used by the 3.5 wrapper to feed back Hermes's own
+### self-reported "no framework applies" verdict through the same code path)
+run_case "L1 none override" "$TMP/l2-go" "internal/handlers/user.go" "none" \
+  "LAYER=L1" "TEST_FRAMEWORK=none" "TEST_COMMAND=exit 0"
+
 ### L1: unrecognized override fails loudly instead of silently falling to L2
 if REPO_ROOT="$TMP/l2-go" CRASHED_FILE="internal/handlers/user.go" \
    REVI_FALLBACK_TEST="cobol-unit" "$DETECT" > /tmp/detect_bad_override.out 2>&1; then

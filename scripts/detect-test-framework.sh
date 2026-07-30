@@ -14,13 +14,17 @@ set -euo pipefail
 : "${CRASHED_FILE:?CRASHED_FILE is required}"
 
 # framework|test command|sibling test file suffix (TRD's mapping table --
-# Cargo/pytest have no explicit suffix convention in the TRD, so left empty)
+# Cargo/pytest have no explicit suffix convention in the TRD, so left empty).
+# "none" is a valid override too (Phase 3.5): it lets the wrapper feed back
+# Hermes's own self-reported "no framework applies" verdict through the same
+# code path as a real L1 override, rather than needing a second lookup table.
 profile() {
   case "$1" in
     go)     echo "go|go test ./...|_test.go" ;;
     cargo)  echo "cargo|cargo test|" ;;
     jest)   echo "jest|npx jest|.test.js" ;;
     pytest) echo "pytest|pytest|" ;;
+    none)   echo "none|exit 0|" ;;
     *)      return 1 ;;
   esac
 }
