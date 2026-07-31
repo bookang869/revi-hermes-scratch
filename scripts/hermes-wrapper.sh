@@ -80,15 +80,26 @@ manifest_for() {
   esac
 }
 
-# Repo-wide search rather than a walk-up from a known crashed-file path --
-# ponytail: we don't have that path (Hermes self-reports the framework, not
-# the file -- see PLAN 3.5 design notes), so this assumes one manifest per
-# framework type. Fine for a single-service repo/fixture; a real monorepo
-# with two go.mod's would need the file-path-aware walk from 3.4 instead.
+# Ties the gate to what Hermes actually changed rather than a repo-wide
+# guess: walks up from the directory of the first file git shows as changed
+# to find the nearest manifest. Self-verifying -- doesn't require Hermes to
+# report a path, since the wrapper already inspects git status for the
+# test-file check below. awk '{print $NF}' (not $2) also gets renamed files
+# right -- `R  old -> new` puts the new path last.
+# ponytail: takes the first changed file only; a single attempt spanning two
+# components (unlikely -- the prompt asks for a co-located sibling test
+# file) would gate on just one. Fine for a single-service repo/fixture.
 find_manifest_dir() {
-  local manifest="$1" found
-  found="$(find "$GITHUB_WORKSPACE" -maxdepth 4 -not -path '*/.git/*' -name "$manifest" 2>/dev/null | head -1)"
-  [[ -n "$found" ]] && dirname "$found"
+  local manifest="$1" changed_file dir
+  changed_file="$(git -C "$GITHUB_WORKSPACE" status --porcelain | awk '{print $NF}' | head -1)"
+  [[ -z "$changed_file" ]] && return 1
+
+  dir="$(cd "$GITHUB_WORKSPACE/$(dirname "$changed_file")" && pwd)"
+  while :; do
+    [[ -f "$dir/$manifest" ]] && { echo "$dir"; return 0; }
+    [[ "$dir" == "$GITHUB_WORKSPACE" ]] && return 1
+    dir="$(dirname "$dir")"
+  done
 }
 
 # Gates one attempt. Returns 0 (pass) or 1 (fail); prints the reason to stderr.
