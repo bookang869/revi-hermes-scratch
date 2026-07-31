@@ -143,6 +143,85 @@ GO
     echo '{"confidence_note": "Fixed it", "summary": "Added nil check", "test_framework": "go"}'
     ;;
 
+  fail_test_wrong_dir)
+    # Real fix, but the "test file" lands outside the manifest directory --
+    # must be rejected even though some file in the repo matches the
+    # suffix, per the gate's directory-scoping requirement.
+    cat > "$APP_DIR/order.go" <<'GO'
+package main
+
+import "fmt"
+
+type Customer struct {
+	Name string
+}
+
+type Order struct {
+	Customer *Customer
+	Amount   int
+}
+
+func Summarize(o *Order) string {
+	if o.Customer == nil {
+		return fmt.Sprintf("unknown customer owes %d", o.Amount)
+	}
+	return fmt.Sprintf("%s owes %d", o.Customer.Name, o.Amount)
+}
+GO
+    cat > "$GITHUB_WORKSPACE/rogue_test.go" <<'GO'
+package rogue
+
+import "testing"
+
+func TestNothing(t *testing.T) {}
+GO
+    echo '{"confidence_note": "High confidence: added nil check on Order.Customer", "summary": "Fixed nil pointer dereference in Summarize", "test_framework": "go"}'
+    ;;
+
+  succeed_via_rename)
+    # Test file arrives via a staged git rename (R  old -> new) rather than
+    # a fresh untracked file -- exercises that the gate reads the renamed-to
+    # path, not the renamed-from one.
+    cat > "$APP_DIR/order.go" <<'GO'
+package main
+
+import "fmt"
+
+type Customer struct {
+	Name string
+}
+
+type Order struct {
+	Customer *Customer
+	Amount   int
+}
+
+func Summarize(o *Order) string {
+	if o.Customer == nil {
+		return fmt.Sprintf("unknown customer owes %d", o.Amount)
+	}
+	return fmt.Sprintf("%s owes %d", o.Customer.Name, o.Amount)
+}
+GO
+    cat > "$APP_DIR/scratch.go" <<'GO'
+package main
+
+import "testing"
+
+func TestSummarize_NilCustomer(t *testing.T) {
+	got := Summarize(&Order{Amount: 42})
+	want := "unknown customer owes 42"
+	if got != want {
+		t.Errorf("Summarize() = %q, want %q", got, want)
+	}
+}
+GO
+    git -C "$GITHUB_WORKSPACE" add "$APP_DIR/scratch.go"
+    git -C "$GITHUB_WORKSPACE" -c user.email=t@t -c user.name=t commit -qm placeholder
+    git -C "$GITHUB_WORKSPACE" mv "$APP_DIR/scratch.go" "$APP_DIR/order_test.go"
+    echo '{"confidence_note": "High confidence: added nil check on Order.Customer", "summary": "Fixed nil pointer dereference in Summarize", "test_framework": "go"}'
+    ;;
+
   malformed_json)
     echo 'Sure, I fixed the bug! Here is what I did: added a nil check.'
     ;;

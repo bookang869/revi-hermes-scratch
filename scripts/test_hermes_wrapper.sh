@@ -135,6 +135,16 @@ run_scenario "no-test-file-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=fail_no
 assert_eq "$OUTCOME" "FAILED" "F: outcome (fix without test must not pass)"
 assert_eq "$ATTEMPTS" "3" "F: attempts_made"
 
+### Scenario G: test file written outside manifest_dir -- must not satisfy the gate
+run_scenario "test-file-wrong-dir-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=fail_test_wrong_dir'
+assert_eq "$OUTCOME" "FAILED" "G: outcome (stray test file elsewhere must not pass)"
+assert_eq "$ATTEMPTS" "3" "G: attempts_made"
+
+### Scenario H: test file written via a staged git rename -- must still satisfy the gate
+run_scenario "test-file-via-rename-accepted" "PR_REVIEW" 'export FAKE_AGENT_MODE=succeed_via_rename'
+assert_eq "$OUTCOME" "PASSED" "H: outcome (renamed-into-place test file must count)"
+assert_eq "$ATTEMPTS" "1" "H: attempts_made"
+
 echo ""
 if [[ "$FAILURES" -eq 0 ]]; then
   echo "ALL PASS"

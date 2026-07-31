@@ -124,8 +124,13 @@ run_gate() {
   # Cargo/pytest have no suffix convention in the TRD, so this check is
   # skipped for those two (ponytail: revisit if a convention gets adopted).
   if [[ -n "$test_file_suffix" ]]; then
-    if ! git -C "$GITHUB_WORKSPACE" status --porcelain | awk '{print $2}' | grep -q -- "${test_file_suffix}\$"; then
-      echo "gate: no changed file matching *$test_file_suffix -- test not written" >&2
+    local manifest_rel changed_files
+    manifest_rel="${manifest_dir#"$GITHUB_WORKSPACE"}"
+    manifest_rel="${manifest_rel#/}"
+    changed_files="$(git -C "$GITHUB_WORKSPACE" status --porcelain | awk '{print $NF}')"
+    [[ -n "$manifest_rel" ]] && changed_files="$(grep -- "^${manifest_rel}/" <<< "$changed_files")"
+    if ! grep -q -- "${test_file_suffix}\$" <<< "$changed_files"; then
+      echo "gate: no changed file under $manifest_dir matching *$test_file_suffix -- test not written" >&2
       return 1
     fi
   fi
