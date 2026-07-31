@@ -39,7 +39,7 @@ jobs:
         run: hermes --version
       # Phase 3.5: diagnose + fix + sibling test, gated on independent
       # compile/test verification, up to 3 attempts, escalates on exhaustion.
-      # PR promotion on a gated pass lands in Phase 3.6 (still a stub below).
+      # PR promotion on a gated pass is Phase 3.6, below.
       - name: Hermes repair loop
         id: wrapper
         env:
@@ -47,10 +47,18 @@ jobs:
           REVI_ESCALATION_WEBHOOK_URL: ${{ secrets.REVI_ESCALATION_WEBHOOK_URL }}
           REVI_ESCALATION_WEBHOOK_SECRET: ${{ secrets.REVI_ESCALATION_WEBHOOK_SECRET }}
         run: bash scripts/hermes-wrapper.sh
-      # ponytail: stub -- PR push/open + PR_READY escalation land in PLAN 3.6
-      - name: PR_REVIEW promotion (stub)
+      # Phase 3.6: push hermes/hotfix-[alert-id] with GITHUB_TOKEN_HERMES,
+      # open (or update) a same-repo PR to main, escalate PR_READY.
+      - name: PR_REVIEW promotion
+        id: promote
         if: steps.wrapper.outputs.outcome == 'PASSED'
-        run: echo "TODO Phase 3.6 - push hermes/hotfix-${{ github.event.client_payload.alert_id }}, open PR, escalate PR_READY"
+        env:
+          REVI_ESCALATION_WEBHOOK_URL: ${{ secrets.REVI_ESCALATION_WEBHOOK_URL }}
+          REVI_ESCALATION_WEBHOOK_SECRET: ${{ secrets.REVI_ESCALATION_WEBHOOK_SECRET }}
+          SUMMARY: ${{ steps.wrapper.outputs.summary }}
+          CONFIDENCE_NOTE: ${{ steps.wrapper.outputs.confidence_note }}
+          ATTEMPTS_MADE: ${{ steps.wrapper.outputs.attempts_made }}
+        run: bash scripts/promote-pr.sh
       # Phase 3.3: always() so a run reports its outcome whether the steps
       # above succeeded or failed -- PLAN cross-cutting rule #5, no silent
       # failures. REVI_DIGEST_WEBHOOK_URL is unset until Phase 5.1 (tunnel)
