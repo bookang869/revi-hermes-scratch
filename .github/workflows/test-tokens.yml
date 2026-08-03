@@ -1,0 +1,88 @@
+name: test-tokens
+
+on:
+  workflow_dispatch:
+
+# Disposable, one-shot verification that REVI_TOKEN_HERMES/REVI_TOKEN_PROD
+# (PLAN 4.4) actually have the permissions the pipeline needs against the
+# real GitHub API, and that the protect-main ruleset behaves as designed:
+# an API-created merge is accepted (auto-Verified), a raw push to main is
+# rejected. Not part of the pipeline -- delete this file after the run.
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Push disposable branch with REVI_TOKEN_HERMES
+        env:
+          TOKEN: ${{ secrets.REVI_TOKEN_HERMES }}
+        run: |
+          git config user.name "revi-test"
+          git config user.email "revi-test@users.noreply.github.com"
+          git checkout -b hermes/test-token-check
+          echo "token check $(date -u +%s)" >> TOKEN_TEST.md
+          git add -A
+          git commit -qm "test: token validation (disposable, PLAN 4.4)"
+          git -c http."https://github.com/".extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)" \
+            push --force origin HEAD:refs/heads/hermes/test-token-check
+          echo "OK: REVI_TOKEN_HERMES pushed hermes/test-token-check"
+
+      - name: Merge via REVI_TOKEN_PROD (expect success + Verified commit)
+        env:
+          TOKEN: ${{ secrets.REVI_TOKEN_PROD }}
+        run: |
+          RESPONSE="$(curl --silent --show-error -w '\n%{http_code}' \
+            -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+            -d '{"base":"main","head":"hermes/test-token-check","commit_message":"test: token validation merge (disposable, PLAN 4.4)"}' \
+            "https://api.github.com/repos/${{ github.repository }}/merges")"
+          HTTP_CODE="$(tail -n1 <<< "$RESPONSE")"
+          BODY="$(sed '$d' <<< "$RESPONSE")"
+          echo "$BODY"
+          if [[ "$HTTP_CODE" != 2* ]]; then
+            echo "UNEXPECTED: merge API call failed with $HTTP_CODE -- REVI_TOKEN_PROD may be misscoped" >&2
+            exit 1
+          fi
+          SHA="$(echo "$BODY" | python3 -c 'import json,sys; print(json.load(sys.stdin)["sha"])')"
+          echo "MERGE_SHA=$SHA" >> "$GITHUB_ENV"
+          echo "OK: merge API returned $HTTP_CODE, sha=$SHA"
+
+      - name: Confirm the merge commit is Verified
+        run: |
+          VERIFIED="$(gh api "repos/${{ github.repository }}/commits/$MERGE_SHA" --jq '.commit.verification.verified')"
+          echo "verified=$VERIFIED"
+          if [[ "$VERIFIED" != "true" ]]; then
+            echo "UNEXPECTED: merge commit is not Verified" >&2
+            exit 1
+          fi
+          echo "OK: merge commit $MERGE_SHA is Verified"
+        env:
+          GH_TOKEN: ${{ secrets.REVI_TOKEN_PROD }}
+
+      - name: Attempt direct push to main with REVI_TOKEN_HERMES (expect rejection)
+        env:
+          TOKEN: ${{ secrets.REVI_TOKEN_HERMES }}
+        run: |
+          git fetch origin main
+          git checkout main
+          git reset --hard origin/main
+          echo "should never land" >> TOKEN_TEST_SHOULD_FAIL.md
+          git add -A
+          git commit -qm "test: this push must be rejected by branch protection"
+          if git -c http."https://github.com/".extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)" \
+            push origin HEAD:refs/heads/main; then
+            echo "UNEXPECTED: REVI_TOKEN_HERMES was able to push directly to main -- branch protection failed!" >&2
+            exit 1
+          else
+            echo "OK: REVI_TOKEN_HERMES push to main was rejected as expected"
+          fi
+
+      - name: Cleanup disposable branch
+        if: always()
+        env:
+          TOKEN: ${{ secrets.REVI_TOKEN_HERMES }}
+        run: |
+          curl --silent --show-error -X DELETE -H "Authorization: Bearer $TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/git/refs/heads/hermes/test-token-check" || true
