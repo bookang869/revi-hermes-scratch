@@ -51,35 +51,15 @@ jobs:
           echo "MERGE_SHA=$SHA" >> "$GITHUB_ENV"
           echo "OK: merge API returned $HTTP_CODE, sha=$SHA"
 
-      - name: Confirm the merge commit is Verified
-        run: |
-          VERIFIED="$(gh api "repos/${{ github.repository }}/commits/$MERGE_SHA" --jq '.commit.verification.verified')"
-          echo "verified=$VERIFIED"
-          if [[ "$VERIFIED" != "true" ]]; then
-            echo "UNEXPECTED: merge commit is not Verified" >&2
-            exit 1
-          fi
-          echo "OK: merge commit $MERGE_SHA is Verified"
-        env:
-          GH_TOKEN: ${{ secrets.REVI_TOKEN_PROD }}
-
-      - name: Attempt direct push to main with REVI_TOKEN_HERMES (expect rejection)
-        env:
-          TOKEN: ${{ secrets.REVI_TOKEN_HERMES }}
-        run: |
-          git fetch origin main
-          git checkout main
-          git reset --hard origin/main
-          echo "should never land" >> TOKEN_TEST_SHOULD_FAIL.md
-          git add -A
-          git commit -qm "test: this push must be rejected by branch protection"
-          if git -c http."https://github.com/".extraheader="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)" \
-            push origin HEAD:refs/heads/main; then
-            echo "UNEXPECTED: REVI_TOKEN_HERMES was able to push directly to main -- branch protection failed!" >&2
-            exit 1
-          else
-            echo "OK: REVI_TOKEN_HERMES push to main was rejected as expected"
-          fi
+      # required_signatures was dropped from protect-main (PLAN 4.4 revised,
+      # 2026-08-03 -- see SETUP.md) after confirming it blocked normal PR
+      # merges for everyone, not just this pipeline. The merge commit above
+      # is therefore expected to be unverified now -- not asserting on it.
+      # Deliberately NOT testing "REVI_TOKEN_HERMES push to main is
+      # rejected" here anymore: without required_signatures, that push
+      # would actually succeed, and this workflow shouldn't demonstrate
+      # that by landing a real commit on main. See SETUP.md for the
+      # documented gap and the Phase 6 TODO (bot account / GitHub App).
 
       - name: Cleanup disposable branch
         if: always()
