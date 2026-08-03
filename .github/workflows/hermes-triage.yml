@@ -32,7 +32,17 @@ jobs:
       LOG_CONTEXT: ${{ github.event.client_payload.log_context }}
       REVI_MODE: PR_REVIEW
     steps:
+      # persist-credentials: false -- checkout's default leaves its own
+      # http.extraheader (default GITHUB_TOKEN) configured in the local git
+      # config. Our own promote/merge steps add a second extraheader with
+      # the scoped token (HERMES/PROD); git allows multiple, so both get
+      # sent and GitHub 400s with "Duplicate header: Authorization" (found
+      # 2026-08-03 testing PLAN 4.4 against the real API). Checkout itself
+      # still authenticates fine to clone/fetch; it just doesn't leave
+      # credentials behind afterward.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Confirm routing
         run: echo "mode routed to PR_REVIEW (raw client_payload.mode='${{ github.event.client_payload.mode }}')"
       - name: Confirm Hermes preinstalled
@@ -103,7 +113,17 @@ jobs:
       REVI_BOOT_COMMAND: "cd fixture-app && go run ."
       REVI_HEALTH_URL: "http://localhost:8080/healthz"
     steps:
+      # persist-credentials: false -- checkout's default leaves its own
+      # http.extraheader (default GITHUB_TOKEN) configured in the local git
+      # config. Our own promote/merge steps add a second extraheader with
+      # the scoped token (HERMES/PROD); git allows multiple, so both get
+      # sent and GitHub 400s with "Duplicate header: Authorization" (found
+      # 2026-08-03 testing PLAN 4.4 against the real API). Checkout itself
+      # still authenticates fine to clone/fetch; it just doesn't leave
+      # credentials behind afterward.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Confirm routing
         run: echo "mode routed to AUTONOMOUS"
       - name: Confirm Hermes preinstalled
