@@ -24,7 +24,7 @@ jobs:
       contents: read
       packages: read
     env:
-      GITHUB_TOKEN_HERMES: ${{ secrets.GITHUB_TOKEN_HERMES }}
+      GITHUB_TOKEN_HERMES: ${{ secrets.REVI_TOKEN_HERMES }}
       TRACE_ID: ${{ github.event.client_payload.trace_id }}
       ALERT_ID: ${{ github.event.client_payload.alert_id }}
       SERVICE_NAME: ${{ github.event.client_payload.service_name }}
@@ -88,8 +88,8 @@ jobs:
       contents: read
       packages: read
     env:
-      GITHUB_TOKEN_HERMES: ${{ secrets.GITHUB_TOKEN_HERMES }}
-      GITHUB_TOKEN_PROD: ${{ secrets.GITHUB_TOKEN_PROD }}
+      GITHUB_TOKEN_HERMES: ${{ secrets.REVI_TOKEN_HERMES }}
+      GITHUB_TOKEN_PROD: ${{ secrets.REVI_TOKEN_PROD }}
       TRACE_ID: ${{ github.event.client_payload.trace_id }}
       ALERT_ID: ${{ github.event.client_payload.alert_id }}
       SERVICE_NAME: ${{ github.event.client_payload.service_name }}
