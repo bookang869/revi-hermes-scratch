@@ -96,15 +96,45 @@ jobs:
       ERROR_SUMMARY: ${{ github.event.client_payload.error_summary }}
       LOG_CONTEXT: ${{ github.event.client_payload.log_context }}
       REVI_MODE: AUTONOMOUS
+      # Phase 4.1 (TRD FR-03): operator-set, workflow-level env vars -- this
+      # single-tenant deployment targets exactly one known repo, so these
+      # are static config here rather than a platform config file. Points
+      # at the fixture app until Phase 6 wires in a real protected app.
+      REVI_BOOT_COMMAND: "cd fixture-app && go run ."
+      REVI_HEALTH_URL: "http://localhost:8080/healthz"
     steps:
       - uses: actions/checkout@v4
       - name: Confirm routing
         run: echo "mode routed to AUTONOMOUS"
       - name: Confirm Hermes preinstalled
         run: hermes --version
-      # ponytail: stub -- boot/smoke/test-grid/merge steps land in PLAN Phase 4
+      # Phase 3.5 (shared with pr_review): diagnose + fix + sibling test,
+      # gated on independent compile/test verification, up to 3 attempts,
+      # escalates on exhaustion (severity: critical here since REVI_MODE is
+      # AUTONOMOUS -- see hermes-wrapper.sh's exhaustion branch).
+      - name: Hermes repair loop
+        id: wrapper
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REVI_ESCALATION_WEBHOOK_URL: ${{ secrets.REVI_ESCALATION_WEBHOOK_URL }}
+          REVI_ESCALATION_WEBHOOK_SECRET: ${{ secrets.REVI_ESCALATION_WEBHOOK_SECRET }}
+        run: bash scripts/hermes-wrapper.sh
+      # Phase 4.1 (TRD FR-03): boot the patched app and poll REVI_HEALTH_URL
+      # for up to 30s. A boot failure pages immediately (APP_BOOT_FAILURE,
+      # critical) and blocks the merge steps below.
+      - name: Synthetic smoke test
+        id: smoke
+        if: steps.wrapper.outputs.outcome == 'PASSED'
+        env:
+          REVI_ESCALATION_WEBHOOK_URL: ${{ secrets.REVI_ESCALATION_WEBHOOK_URL }}
+          REVI_ESCALATION_WEBHOOK_SECRET: ${{ secrets.REVI_ESCALATION_WEBHOOK_SECRET }}
+          ATTEMPTS_MADE: ${{ steps.wrapper.outputs.attempts_made }}
+        run: bash scripts/smoke-test.sh
+      # ponytail: stub -- existing test grid + API-signed merge to main land
+      # in PLAN Phase 4.2/4.3.
       - name: AUTONOMOUS pipeline (stub)
-        run: echo "TODO Phase 4 - app boot smoke test, test grid, API-signed merge"
+        if: steps.wrapper.outputs.outcome == 'PASSED' && steps.smoke.outputs.outcome == 'PASSED'
+        run: echo "TODO Phase 4.2/4.3 - existing test grid, API-signed merge to main"
       # Phase 3.3: same always()-guarded digest report as pr_review -- see
       # comment there re: REVI_DIGEST_WEBHOOK_URL depending on Phase 5.1.
       - name: Report digest entry
@@ -112,6 +142,6 @@ jobs:
         env:
           REVI_DIGEST_WEBHOOK_URL: ${{ secrets.REVI_DIGEST_WEBHOOK_URL }}
           REVI_WEBHOOK_SECRET: ${{ secrets.REVI_WEBHOOK_SECRET }}
-          OUTCOME: STUB
-          SUMMARY: "Phase 3 stub run -- no real boot/smoke/merge logic yet (lands in Phase 4)"
+          OUTCOME: ${{ steps.smoke.outputs.outcome || steps.wrapper.outputs.outcome || 'FAILED' }}
+          SUMMARY: ${{ steps.wrapper.outputs.summary || 'Hermes repair loop step did not produce an outcome' }}
         run: bash scripts/report-digest.sh
