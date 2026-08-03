@@ -152,6 +152,9 @@ ATTEMPT=0
 OUTCOME="FAILED"
 CONFIDENCE_NOTE=""
 SUMMARY=""
+GATE_FRAMEWORK=""
+GATE_TEST_COMMAND=""
+GATE_MANIFEST_DIR=""
 
 while [[ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]]; do
   ATTEMPT=$((ATTEMPT + 1))
@@ -198,6 +201,17 @@ while [[ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]]; do
 
   if run_gate "$EFFECTIVE_FRAMEWORK" "$TEST_COMMAND" "$TEST_FILE_SUFFIX"; then
     OUTCOME="PASSED"
+    GATE_FRAMEWORK="$EFFECTIVE_FRAMEWORK"
+    GATE_TEST_COMMAND="$TEST_COMMAND"
+    # Same directory run_gate already resolved -- recomputed here (cheap,
+    # side-effect-free directory walk) since run_gate's copy is local to
+    # its own scope. AUTONOMOUS mode's test-grid step (PLAN 4.2) reuses
+    # this via GITHUB_OUTPUT instead of re-detecting from scratch.
+    if [[ "$EFFECTIVE_FRAMEWORK" == "none" ]]; then
+      GATE_MANIFEST_DIR="$GITHUB_WORKSPACE"
+    else
+      GATE_MANIFEST_DIR="$(find_manifest_dir "$(manifest_for "$EFFECTIVE_FRAMEWORK")")"
+    fi
     break
   fi
   echo "attempt $ATTEMPT: gate failed"
@@ -208,6 +222,9 @@ done
   echo "attempts_made=$ATTEMPT"
   echo "confidence_note=$CONFIDENCE_NOTE"
   echo "summary=$SUMMARY"
+  echo "test_framework=$GATE_FRAMEWORK"
+  echo "test_command=$GATE_TEST_COMMAND"
+  echo "manifest_dir=$GATE_MANIFEST_DIR"
 } >> "${GITHUB_OUTPUT:-/dev/null}"
 
 if [[ "$OUTCOME" == "PASSED" ]]; then

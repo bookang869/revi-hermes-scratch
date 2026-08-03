@@ -130,11 +130,25 @@ jobs:
           REVI_ESCALATION_WEBHOOK_SECRET: ${{ secrets.REVI_ESCALATION_WEBHOOK_SECRET }}
           ATTEMPTS_MADE: ${{ steps.wrapper.outputs.attempts_made }}
         run: bash scripts/smoke-test.sh
-      # ponytail: stub -- existing test grid + API-signed merge to main land
-      # in PLAN Phase 4.2/4.3.
-      - name: AUTONOMOUS pipeline (stub)
+      # Phase 4.2/4.3 (TRD FR-05): push hermes/hotfix-[alert-id], run the
+      # project's full existing test suite (reusing the framework/manifest
+      # dir the wrapper already detected), and on a full pass create the
+      # merge commit into main via the GitHub REST API (GITHUB_TOKEN_PROD,
+      # auto-"Verified", no GPG key). Any test-grid failure abandons the
+      # workspace, force-deletes the branch, and escalates
+      # REGRESSION/critical -- main stays untouched either way.
+      - name: AUTONOMOUS promotion
+        id: promote
         if: steps.wrapper.outputs.outcome == 'PASSED' && steps.smoke.outputs.outcome == 'PASSED'
-        run: echo "TODO Phase 4.2/4.3 - existing test grid, API-signed merge to main"
+        env:
+          REVI_ESCALATION_WEBHOOK_URL: ${{ secrets.REVI_ESCALATION_WEBHOOK_URL }}
+          REVI_ESCALATION_WEBHOOK_SECRET: ${{ secrets.REVI_ESCALATION_WEBHOOK_SECRET }}
+          SUMMARY: ${{ steps.wrapper.outputs.summary }}
+          CONFIDENCE_NOTE: ${{ steps.wrapper.outputs.confidence_note }}
+          ATTEMPTS_MADE: ${{ steps.wrapper.outputs.attempts_made }}
+          TEST_COMMAND: ${{ steps.wrapper.outputs.test_command }}
+          MANIFEST_DIR: ${{ steps.wrapper.outputs.manifest_dir }}
+        run: bash scripts/autonomous-promote.sh
       # Phase 3.3: same always()-guarded digest report as pr_review -- see
       # comment there re: REVI_DIGEST_WEBHOOK_URL depending on Phase 5.1.
       - name: Report digest entry
@@ -142,6 +156,6 @@ jobs:
         env:
           REVI_DIGEST_WEBHOOK_URL: ${{ secrets.REVI_DIGEST_WEBHOOK_URL }}
           REVI_WEBHOOK_SECRET: ${{ secrets.REVI_WEBHOOK_SECRET }}
-          OUTCOME: ${{ steps.smoke.outputs.outcome || steps.wrapper.outputs.outcome || 'FAILED' }}
+          OUTCOME: ${{ steps.promote.outputs.outcome || steps.smoke.outputs.outcome || steps.wrapper.outputs.outcome || 'FAILED' }}
           SUMMARY: ${{ steps.wrapper.outputs.summary || 'Hermes repair loop step did not produce an outcome' }}
         run: bash scripts/report-digest.sh
