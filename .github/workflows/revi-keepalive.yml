@@ -10,8 +10,23 @@ on:
 jobs:
   keepalive:
     runs-on: ubuntu-latest
+    # Must match hermes-triage.yml's pr_review/autonomous jobs exactly (same
+    # image). actions/cache fingerprints each entry by a "version" hash that
+    # includes the runner's compression toolchain -- a bare ubuntu-latest
+    # host and this container produce different fingerprints for the same
+    # path/key, so a restore from the host silently misses every real
+    # hermes-memory-* entry instead of refreshing it (confirmed live
+    # 2026-08-07: a bare-host keepalive run reported "Cache not found" for
+    # keys that had just been proven restorable moments earlier from inside
+    # this same container image).
+    container:
+      image: ghcr.io/bookang869/revi-hermes-scratch/hermes-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     permissions:
       contents: read
+      packages: read
     steps:
       # Phase 5.2 (PLAN 5.2): GitHub evicts a cache entry that goes 7 days
       # without being read, regardless of the repo's 10GB cache budget --
