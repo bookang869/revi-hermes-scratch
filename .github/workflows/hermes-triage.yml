@@ -47,6 +47,19 @@ jobs:
         run: echo "mode routed to PR_REVIEW (raw client_payload.mode='${{ github.event.client_payload.mode }}')"
       - name: Confirm Hermes preinstalled
         run: hermes --version
+      # Phase 5.2 (PLAN 5.2): restore ~/.hermes (skills + session memory,
+      # HERMES_HOME default per the installer) from the most recent cache
+      # for this repo before Hermes runs, so run N+1 sees skills learned in
+      # run N. restore-keys falls back to the newest prefix match when no
+      # exact run_id key exists yet -- true on every run, since the key
+      # always includes this run's own id.
+      - name: Restore Hermes memory cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.hermes
+          key: hermes-memory-${{ github.repository }}-${{ github.run_id }}
+          restore-keys: |
+            hermes-memory-${{ github.repository }}-
       # Phase 3.5: diagnose + fix + sibling test, gated on independent
       # compile/test verification, up to 3 attempts, escalates on exhaustion.
       # PR promotion on a gated pass is Phase 3.6, below.
@@ -57,6 +70,17 @@ jobs:
           REVI_ESCALATION_WEBHOOK_URL: ${{ secrets.REVI_ESCALATION_WEBHOOK_URL }}
           REVI_ESCALATION_WEBHOOK_SECRET: ${{ secrets.REVI_ESCALATION_WEBHOOK_SECRET }}
         run: bash scripts/hermes-wrapper.sh
+      # Phase 5.2 (PLAN 5.2): persist ~/.hermes back to cache regardless of
+      # outcome -- if: always() overrides the implicit success() check so
+      # this still runs after an EXHAUSTION exit (wrapper step exits 1).
+      # Unique per-run key (never overwritten); the restore step above
+      # always resolves to the newest one via restore-keys.
+      - name: Save Hermes memory cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.hermes
+          key: hermes-memory-${{ github.repository }}-${{ github.run_id }}
       # Phase 3.6: push hermes/hotfix-[alert-id] with GITHUB_TOKEN_HERMES,
       # open (or update) a same-repo PR to main, escalate PR_READY.
       - name: PR_REVIEW promotion
@@ -128,6 +152,19 @@ jobs:
         run: echo "mode routed to AUTONOMOUS"
       - name: Confirm Hermes preinstalled
         run: hermes --version
+      # Phase 5.2 (PLAN 5.2): restore ~/.hermes (skills + session memory,
+      # HERMES_HOME default per the installer) from the most recent cache
+      # for this repo before Hermes runs, so run N+1 sees skills learned in
+      # run N. restore-keys falls back to the newest prefix match when no
+      # exact run_id key exists yet -- true on every run, since the key
+      # always includes this run's own id.
+      - name: Restore Hermes memory cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.hermes
+          key: hermes-memory-${{ github.repository }}-${{ github.run_id }}
+          restore-keys: |
+            hermes-memory-${{ github.repository }}-
       # Phase 3.5 (shared with pr_review): diagnose + fix + sibling test,
       # gated on independent compile/test verification, up to 3 attempts,
       # escalates on exhaustion (severity: critical here since REVI_MODE is
@@ -139,6 +176,17 @@ jobs:
           REVI_ESCALATION_WEBHOOK_URL: ${{ secrets.REVI_ESCALATION_WEBHOOK_URL }}
           REVI_ESCALATION_WEBHOOK_SECRET: ${{ secrets.REVI_ESCALATION_WEBHOOK_SECRET }}
         run: bash scripts/hermes-wrapper.sh
+      # Phase 5.2 (PLAN 5.2): persist ~/.hermes back to cache regardless of
+      # outcome -- if: always() overrides the implicit success() check so
+      # this still runs after an EXHAUSTION exit (wrapper step exits 1).
+      # Unique per-run key (never overwritten); the restore step above
+      # always resolves to the newest one via restore-keys.
+      - name: Save Hermes memory cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.hermes
+          key: hermes-memory-${{ github.repository }}-${{ github.run_id }}
       # Phase 4.1 (TRD FR-03): boot the patched app and poll REVI_HEALTH_URL
       # for up to 30s. A boot failure pages immediately (APP_BOOT_FAILURE,
       # critical) and blocks the merge steps below.

@@ -1,0 +1,33 @@
+name: revi-keepalive
+
+on:
+  schedule:
+    - cron: '0 6 * * 4' # weekly, Thursday 06:00 UTC -- staggered from
+                         # build-hermes-image.yml's Monday 06:00 UTC so the
+                         # two scheduled workflows don't queue at the same time
+  workflow_dispatch: {}
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # Phase 5.2 (PLAN 5.2): GitHub evicts a cache entry that goes 7 days
+      # without being read, regardless of the repo's 10GB cache budget --
+      # restoring here on a schedule keeps hermes-memory-* "read recently"
+      # even during weeks with zero repository_dispatch triggers (no alerts
+      # fired). No checkout, no Hermes invocation, no ANTHROPIC_API_KEY --
+      # this job's only side effect is refreshing the matched cache entry's
+      # last-accessed timestamp; it never fires alerts and never touches code.
+      # key intentionally won't exact-match anything real, so this always
+      # falls through to restore-keys and refreshes the newest
+      # hermes-memory-<repo>-<run_id> entry -- same fallback restore-keys
+      # uses in hermes-triage.yml's own restore step.
+      - name: Keepalive-restore Hermes memory cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.hermes
+          key: hermes-memory-${{ github.repository }}-keepalive
+          restore-keys: |
+            hermes-memory-${{ github.repository }}-
