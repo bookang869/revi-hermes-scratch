@@ -118,6 +118,16 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Confirm routing
         run: echo "rehearsal routed to PR_REVIEW (inputs.mode='${{ github.event.inputs.mode }}')"
+      - name: DEBUG path check
+        run: |
+          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
+          echo "pwd=$(pwd)"
+          echo "FIXTURE_APP_DIR=$FIXTURE_APP_DIR"
+          ls -la "$GITHUB_WORKSPACE"
+          ls -la "$GITHUB_WORKSPACE/fixture-app"
+          echo "--- write test ---"
+          echo test > "$FIXTURE_APP_DIR/debug_probe.txt" && echo "write via relative FIXTURE_APP_DIR: OK" || echo "write via relative FIXTURE_APP_DIR: FAILED"
+          cd "$GITHUB_WORKSPACE" && git status --porcelain
       - name: Hermes repair loop
         id: wrapper
         env:
