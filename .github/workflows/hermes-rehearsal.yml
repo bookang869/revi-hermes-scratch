@@ -1,0 +1,200 @@
+name: hermes-rehearsal
+
+# Re:vi PLAN Phase 5.3 — full-loop rehearsal harness. workflow_dispatch-only,
+# deliberately separate from hermes-triage.yml (what every real alert
+# dispatches through) so no real alert path is touched by this file. Mirrors
+# hermes-triage.yml's pr_review/autonomous job bodies, but sources
+# mode/alert fields and test-double controls from github.event.inputs
+# instead of a repository_dispatch client_payload, so a rehearsal run can
+# force fake-agent.sh, a broken health check, or a forced test-grid failure
+# without needing production workflow changes. Cache restore/save (PLAN 5.2)
+# is intentionally omitted here — nothing in a rehearsal run reads or writes
+# ~/.hermes.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "PR_REVIEW or AUTONOMOUS"
+        required: true
+        type: choice
+        options: [PR_REVIEW, AUTONOMOUS]
+        default: PR_REVIEW
+      alert_id:
+        required: true
+        type: string
+      service_name:
+        required: true
+        type: string
+      error_summary:
+        required: true
+        type: string
+      trace_id:
+        required: true
+        type: string
+      log_context:
+        required: false
+        type: string
+        default: ""
+      agent_command:
+        description: "Overrides REVI_AGENT_COMMAND. Defaults to fake-agent.sh (see fake_agent_mode/fake_agent_sequence)."
+        required: false
+        type: string
+        default: "bash scripts/fake-agent.sh"
+      fake_agent_mode:
+        description: "FAKE_AGENT_MODE for fake-agent.sh (ignored if fake_agent_sequence is set)"
+        required: false
+        type: string
+        default: "succeed"
+      fake_agent_sequence:
+        description: "FAKE_AGENT_SEQUENCE, comma-separated (e.g. fail_always,fail_always,fail_always)"
+        required: false
+        type: string
+        default: ""
+      boot_command:
+        description: "AUTONOMOUS only: REVI_BOOT_COMMAND override"
+        required: false
+        type: string
+        default: "cd fixture-app && go run ."
+      health_url:
+        description: "AUTONOMOUS only: REVI_HEALTH_URL override (point at a dead port to rehearse APP_BOOT_FAILURE)"
+        required: false
+        type: string
+        default: "http://localhost:8080/healthz"
+      smoke_budget_seconds:
+        description: "AUTONOMOUS only: REVI_SMOKE_BUDGET_SECONDS override"
+        required: false
+        type: string
+        default: "30"
+      test_command_override:
+        description: "AUTONOMOUS only: forces autonomous-promote.sh's full-test-grid command (rehearses scenario g's regression path). Empty = use whatever the gate detected."
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  pr_review:
+    if: github.event.inputs.mode != 'AUTONOMOUS'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/bookang869/revi-hermes-scratch/hermes-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: read
+    env:
+      GITHUB_TOKEN_HERMES: ${{ secrets.REVI_TOKEN_HERMES }}
+      TRACE_ID: ${{ github.event.inputs.trace_id }}
+      ALERT_ID: ${{ github.event.inputs.alert_id }}
+      SERVICE_NAME: ${{ github.event.inputs.service_name }}
+      ERROR_SUMMARY: ${{ github.event.inputs.error_summary }}
+      LOG_CONTEXT: ${{ github.event.inputs.log_context }}
+      REVI_MODE: PR_REVIEW
+      REVI_AGENT_COMMAND: ${{ github.event.inputs.agent_command }}
+      FAKE_AGENT_MODE: ${{ github.event.inputs.fake_agent_mode }}
+      FAKE_AGENT_SEQUENCE: ${{ github.event.inputs.fake_agent_sequence }}
+      FAKE_AGENT_COUNTER_FILE: ${{ github.workspace }}/.fake_agent_counter
+      FIXTURE_APP_DIR: ${{ github.workspace }}/fixture-app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Confirm routing
+        run: echo "rehearsal routed to PR_REVIEW (inputs.mode='${{ github.event.inputs.mode }}')"
+      - name: Hermes repair loop
+        id: wrapper
+        env:
+          REVI_ESCALATION_WEBHOOK_URL: ${{ secrets.REVI_ESCALATION_WEBHOOK_URL }}
+          REVI_ESCALATION_WEBHOOK_SECRET: ${{ secrets.REVI_ESCALATION_WEBHOOK_SECRET }}
+        run: bash scripts/hermes-wrapper.sh
+      - name: PR_REVIEW promotion
+        id: promote
+        if: steps.wrapper.outputs.outcome == 'PASSED'
+        env:
+          REVI_ESCALATION_WEBHOOK_URL: ${{ secrets.REVI_ESCALATION_WEBHOOK_URL }}
+          REVI_ESCALATION_WEBHOOK_SECRET: ${{ secrets.REVI_ESCALATION_WEBHOOK_SECRET }}
+          SUMMARY: ${{ steps.wrapper.outputs.summary }}
+          CONFIDENCE_NOTE: ${{ steps.wrapper.outputs.confidence_note }}
+          ATTEMPTS_MADE: ${{ steps.wrapper.outputs.attempts_made }}
+        run: bash scripts/promote-pr.sh
+      - name: Report digest entry
+        if: always()
+        env:
+          REVI_DIGEST_WEBHOOK_URL: ${{ secrets.REVI_DIGEST_WEBHOOK_URL }}
+          REVI_WEBHOOK_SECRET: ${{ secrets.REVI_WEBHOOK_SECRET }}
+          OUTCOME: ${{ steps.wrapper.outputs.outcome || 'FAILED' }}
+          SUMMARY: ${{ steps.wrapper.outputs.summary || 'Hermes repair loop step did not produce an outcome' }}
+        run: bash scripts/report-digest.sh
+
+  autonomous:
+    if: github.event.inputs.mode == 'AUTONOMOUS'
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/bookang869/revi-hermes-scratch/hermes-runner:latest
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    permissions:
+      contents: read
+      packages: read
+    env:
+      GITHUB_TOKEN_HERMES: ${{ secrets.REVI_TOKEN_HERMES }}
+      GITHUB_TOKEN_PROD: ${{ secrets.REVI_TOKEN_PROD }}
+      TRACE_ID: ${{ github.event.inputs.trace_id }}
+      ALERT_ID: ${{ github.event.inputs.alert_id }}
+      SERVICE_NAME: ${{ github.event.inputs.service_name }}
+      ERROR_SUMMARY: ${{ github.event.inputs.error_summary }}
+      LOG_CONTEXT: ${{ github.event.inputs.log_context }}
+      REVI_MODE: AUTONOMOUS
+      REVI_AGENT_COMMAND: ${{ github.event.inputs.agent_command }}
+      FAKE_AGENT_MODE: ${{ github.event.inputs.fake_agent_mode }}
+      FAKE_AGENT_SEQUENCE: ${{ github.event.inputs.fake_agent_sequence }}
+      FAKE_AGENT_COUNTER_FILE: ${{ github.workspace }}/.fake_agent_counter
+      FIXTURE_APP_DIR: ${{ github.workspace }}/fixture-app
+      REVI_BOOT_COMMAND: ${{ github.event.inputs.boot_command }}
+      REVI_HEALTH_URL: ${{ github.event.inputs.health_url }}
+      REVI_SMOKE_BUDGET_SECONDS: ${{ github.event.inputs.smoke_budget_seconds }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Confirm routing
+        run: echo "rehearsal routed to AUTONOMOUS"
+      - name: Hermes repair loop
+        id: wrapper
+        env:
+          REVI_ESCALATION_WEBHOOK_URL: ${{ secrets.REVI_ESCALATION_WEBHOOK_URL }}
+          REVI_ESCALATION_WEBHOOK_SECRET: ${{ secrets.REVI_ESCALATION_WEBHOOK_SECRET }}
+        run: bash scripts/hermes-wrapper.sh
+      - name: Synthetic smoke test
+        id: smoke
+        if: steps.wrapper.outputs.outcome == 'PASSED'
+        env:
+          REVI_ESCALATION_WEBHOOK_URL: ${{ secrets.REVI_ESCALATION_WEBHOOK_URL }}
+          REVI_ESCALATION_WEBHOOK_SECRET: ${{ secrets.REVI_ESCALATION_WEBHOOK_SECRET }}
+          ATTEMPTS_MADE: ${{ steps.wrapper.outputs.attempts_made }}
+        run: bash scripts/smoke-test.sh
+      - name: AUTONOMOUS promotion
+        id: promote
+        if: steps.wrapper.outputs.outcome == 'PASSED' && steps.smoke.outputs.outcome == 'PASSED'
+        env:
+          REVI_ESCALATION_WEBHOOK_URL: ${{ secrets.REVI_ESCALATION_WEBHOOK_URL }}
+          REVI_ESCALATION_WEBHOOK_SECRET: ${{ secrets.REVI_ESCALATION_WEBHOOK_SECRET }}
+          SUMMARY: ${{ steps.wrapper.outputs.summary }}
+          CONFIDENCE_NOTE: ${{ steps.wrapper.outputs.confidence_note }}
+          ATTEMPTS_MADE: ${{ steps.wrapper.outputs.attempts_made }}
+          # test_command_override wins when set (rehearses scenario g: gate
+          # passes, full test grid is forced to fail) -- otherwise reuse
+          # whatever the gate itself detected, same as production.
+          TEST_COMMAND: ${{ github.event.inputs.test_command_override != '' && github.event.inputs.test_command_override || steps.wrapper.outputs.test_command }}
+          MANIFEST_DIR: ${{ steps.wrapper.outputs.manifest_dir }}
+        run: bash scripts/autonomous-promote.sh
+      - name: Report digest entry
+        if: always()
+        env:
+          REVI_DIGEST_WEBHOOK_URL: ${{ secrets.REVI_DIGEST_WEBHOOK_URL }}
+          REVI_WEBHOOK_SECRET: ${{ secrets.REVI_WEBHOOK_SECRET }}
+          OUTCOME: ${{ steps.promote.outputs.outcome || steps.smoke.outputs.outcome || steps.wrapper.outputs.outcome || 'FAILED' }}
+          SUMMARY: ${{ steps.wrapper.outputs.summary || 'Hermes repair loop step did not produce an outcome' }}
+        run: bash scripts/report-digest.sh
