@@ -94,8 +94,16 @@ jobs:
       REVI_AGENT_COMMAND: ${{ github.event.inputs.agent_command }}
       FAKE_AGENT_MODE: ${{ github.event.inputs.fake_agent_mode }}
       FAKE_AGENT_SEQUENCE: ${{ github.event.inputs.fake_agent_sequence }}
-      FAKE_AGENT_COUNTER_FILE: ${{ github.workspace }}/.fake_agent_counter
-      FIXTURE_APP_DIR: ${{ github.workspace }}/fixture-app
+      # Relative, not `${{ github.workspace }}` -- that expression is
+      # evaluated on the runner host (/home/runner/work/...), which does not
+      # match $GITHUB_WORKSPACE inside this container job (/__w/...). Plain
+      # relative paths resolve correctly because hermes-wrapper.sh already
+      # `cd`s into $GITHUB_WORKSPACE before invoking $REVI_AGENT_COMMAND, so
+      # fake-agent.sh inherits that cwd. (Found running scenario h/PR_REVIEW,
+      # run 31342139258 -- fake-agent's file landed somewhere git's
+      # container-side view couldn't see, so the gate saw no changed file.)
+      FAKE_AGENT_COUNTER_FILE: .fake_agent_counter
+      FIXTURE_APP_DIR: fixture-app
     steps:
       - uses: actions/checkout@v4
         with:
@@ -158,8 +166,16 @@ jobs:
       REVI_AGENT_COMMAND: ${{ github.event.inputs.agent_command }}
       FAKE_AGENT_MODE: ${{ github.event.inputs.fake_agent_mode }}
       FAKE_AGENT_SEQUENCE: ${{ github.event.inputs.fake_agent_sequence }}
-      FAKE_AGENT_COUNTER_FILE: ${{ github.workspace }}/.fake_agent_counter
-      FIXTURE_APP_DIR: ${{ github.workspace }}/fixture-app
+      # Relative, not `${{ github.workspace }}` -- that expression is
+      # evaluated on the runner host (/home/runner/work/...), which does not
+      # match $GITHUB_WORKSPACE inside this container job (/__w/...). Plain
+      # relative paths resolve correctly because hermes-wrapper.sh already
+      # `cd`s into $GITHUB_WORKSPACE before invoking $REVI_AGENT_COMMAND, so
+      # fake-agent.sh inherits that cwd. (Found running scenario h/PR_REVIEW,
+      # run 31342139258 -- fake-agent's file landed somewhere git's
+      # container-side view couldn't see, so the gate saw no changed file.)
+      FAKE_AGENT_COUNTER_FILE: .fake_agent_counter
+      FIXTURE_APP_DIR: fixture-app
       REVI_BOOT_COMMAND: ${{ github.event.inputs.boot_command }}
       REVI_HEALTH_URL: ${{ github.event.inputs.health_url }}
       REVI_SMOKE_BUDGET_SECONDS: ${{ github.event.inputs.smoke_budget_seconds }}
