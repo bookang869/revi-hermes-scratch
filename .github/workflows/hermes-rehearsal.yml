@@ -102,7 +102,14 @@ jobs:
       # fake-agent.sh inherits that cwd. (Found running scenario h/PR_REVIEW,
       # run 31342139258 -- fake-agent's file landed somewhere git's
       # container-side view couldn't see, so the gate saw no changed file.)
-      FAKE_AGENT_COUNTER_FILE: .fake_agent_counter
+      # Outside $GITHUB_WORKSPACE deliberately -- hermes-wrapper.sh's
+      # find_manifest_dir() picks the FIRST file `git status --porcelain`
+      # lists and walks up from there looking for go.mod. A dot-file at the
+      # repo root sorts before fixture-app/order_test.go, so the counter
+      # file was winning that race and find_manifest_dir walked up from the
+      # repo root instead, which has no go.mod. (Found running the
+      # rehearsal-debug dispatch, run 31342424116.)
+      FAKE_AGENT_COUNTER_FILE: /tmp/.fake_agent_counter
       FIXTURE_APP_DIR: fixture-app
     steps:
       - uses: actions/checkout@v4
@@ -118,16 +125,6 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Confirm routing
         run: echo "rehearsal routed to PR_REVIEW (inputs.mode='${{ github.event.inputs.mode }}')"
-      - name: DEBUG path check
-        run: |
-          echo "GITHUB_WORKSPACE=$GITHUB_WORKSPACE"
-          echo "pwd=$(pwd)"
-          echo "FIXTURE_APP_DIR=$FIXTURE_APP_DIR"
-          ls -la "$GITHUB_WORKSPACE"
-          ls -la "$GITHUB_WORKSPACE/fixture-app"
-          echo "--- write test ---"
-          echo test > "$FIXTURE_APP_DIR/debug_probe.txt" && echo "write via relative FIXTURE_APP_DIR: OK" || echo "write via relative FIXTURE_APP_DIR: FAILED"
-          cd "$GITHUB_WORKSPACE" && git status --porcelain
       - name: Hermes repair loop
         id: wrapper
         env:
@@ -184,7 +181,14 @@ jobs:
       # fake-agent.sh inherits that cwd. (Found running scenario h/PR_REVIEW,
       # run 31342139258 -- fake-agent's file landed somewhere git's
       # container-side view couldn't see, so the gate saw no changed file.)
-      FAKE_AGENT_COUNTER_FILE: .fake_agent_counter
+      # Outside $GITHUB_WORKSPACE deliberately -- hermes-wrapper.sh's
+      # find_manifest_dir() picks the FIRST file `git status --porcelain`
+      # lists and walks up from there looking for go.mod. A dot-file at the
+      # repo root sorts before fixture-app/order_test.go, so the counter
+      # file was winning that race and find_manifest_dir walked up from the
+      # repo root instead, which has no go.mod. (Found running the
+      # rehearsal-debug dispatch, run 31342424116.)
+      FAKE_AGENT_COUNTER_FILE: /tmp/.fake_agent_counter
       FIXTURE_APP_DIR: fixture-app
       REVI_BOOT_COMMAND: ${{ github.event.inputs.boot_command }}
       REVI_HEALTH_URL: ${{ github.event.inputs.health_url }}
