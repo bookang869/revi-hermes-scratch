@@ -1,3 +1,3 @@
-# revi-hermes-scratch
+# revi-hermes-target
 
-Scratch repo for [Re:vi](https://github.com/bookang869/Re-vi) — Hermes CLI validation spike. Receives `repository_dispatch` and hosts `hermes-triage.yml`. Disposable; not the production repo.
+Target repo for [Re:vi](https://github.com/bookang869/Re-vi)'s Hermes triage agent. Receives `repository_dispatch`, hosts `hermes-triage.yml`, and holds the fixture app Hermes patches. Not the production repo — a stand-in for it.
