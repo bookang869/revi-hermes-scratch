@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Hermes wrapper + repair loop (TRD FR-02/FR-04, PLAN 3.5). Agent-agnostic:
 # invokes $REVI_AGENT_COMMAND, never trusts its exit code, independently
-# gates each attempt (compile + test-file-was-actually-written + test run),
-# retries up to 3 times, escalates via escalate.sh on exhaustion.
+# gates each attempt (compile + lint + test-file-was-actually-written + test
+# run), retries up to 3 times, escalates via escalate.sh on exhaustion.
 set -uo pipefail  # not -e: failures are inspected, not fatal mid-loop
 
 : "${GITHUB_WORKSPACE:?GITHUB_WORKSPACE is required}"
@@ -138,6 +138,16 @@ run_gate() {
   case "$framework" in
     go)    (cd "$manifest_dir" && go build ./...) || { echo "gate: go build failed" >&2; return 1; } ;;
     cargo) (cd "$manifest_dir" && cargo build) || { echo "gate: cargo build failed" >&2; return 1; } ;;
+  esac
+
+  # Lint pass (PLAN 6.2). Only go has a lint tool available in the runner
+  # image today -- `go vet` ships with the toolchain already installed for
+  # build/test, no new apt/binary dependency. cargo/jest/pytest have no lint
+  # toolchain installed yet (Dockerfile ponytail: add clippy/eslint/flake8
+  # if/when a real polyglot app lands), so those frameworks skip this check
+  # rather than gating on a tool that doesn't exist.
+  case "$framework" in
+    go) (cd "$manifest_dir" && go vet ./...) || { echo "gate: go vet failed" >&2; return 1; } ;;
   esac
 
   if ! (cd "$manifest_dir" && eval "$test_command"); then

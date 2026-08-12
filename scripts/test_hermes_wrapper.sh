@@ -145,6 +145,23 @@ run_scenario "test-file-via-rename-accepted" "PR_REVIEW" 'export FAKE_AGENT_MODE
 assert_eq "$OUTCOME" "PASSED" "H: outcome (renamed-into-place test file must count)"
 assert_eq "$ATTEMPTS" "1" "H: attempts_made"
 
+### Scenario I: compiles, sibling test passes, but `go vet` flags a bad
+### Printf verb elsewhere in the file -- PLAN 6.2's lint gate must reject it
+### the same way a failed test would, in both PR_REVIEW and AUTONOMOUS.
+run_scenario "lint-violation-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=fail_lint_violation'
+assert_eq "$OUTCOME" "FAILED" "I: outcome (go vet failure must not pass)"
+assert_eq "$ATTEMPTS" "3" "I: attempts_made"
+assert_eq "$ESCALATED" "1" "I: escalation sent exactly once"
+
+run_scenario "lint-violation-rejected-autonomous" "AUTONOMOUS" 'export FAKE_AGENT_MODE=fail_lint_violation'
+assert_eq "$OUTCOME" "FAILED" "I2: outcome (lint violation blocks AUTONOMOUS the same as a failed test)"
+if grep -q '"severity": "critical"' <<< "$ESCALATION_PAYLOAD"; then
+  echo "PASS: I2: escalation payload severity=critical"
+else
+  echo "FAIL: I2: escalation payload wrong: $ESCALATION_PAYLOAD"
+  FAILURES=$((FAILURES + 1))
+fi
+
 echo ""
 if [[ "$FAILURES" -eq 0 ]]; then
   echo "ALL PASS"

@@ -222,6 +222,52 @@ GO
     echo '{"confidence_note": "High confidence: added nil check on Order.Customer", "summary": "Fixed nil pointer dereference in Summarize", "test_framework": "go"}'
     ;;
 
+  fail_lint_violation)
+    # Real fix, real passing test -- but an unrelated function in the same
+    # file has a bad Printf verb (%d against a string arg). Compiles and
+    # tests pass; only `go vet` catches it. Isolates the new lint gate from
+    # the build/test gates the other scenarios already cover.
+    cat > "$APP_DIR/order.go" <<'GO'
+package main
+
+import "fmt"
+
+type Customer struct {
+	Name string
+}
+
+type Order struct {
+	Customer *Customer
+	Amount   int
+}
+
+func Summarize(o *Order) string {
+	if o.Customer == nil {
+		return fmt.Sprintf("unknown customer owes %d", o.Amount)
+	}
+	return fmt.Sprintf("%s owes %d", o.Customer.Name, o.Amount)
+}
+
+func debugLog(o *Order) {
+	fmt.Printf("processing order for %d\n", o.Customer.Name)
+}
+GO
+    cat > "$APP_DIR/order_test.go" <<'GO'
+package main
+
+import "testing"
+
+func TestSummarize_NilCustomer(t *testing.T) {
+	got := Summarize(&Order{Amount: 42})
+	want := "unknown customer owes 42"
+	if got != want {
+		t.Errorf("Summarize() = %q, want %q", got, want)
+	}
+}
+GO
+    echo '{"confidence_note": "High confidence: added nil check on Order.Customer", "summary": "Fixed nil pointer dereference in Summarize", "test_framework": "go"}'
+    ;;
+
   malformed_json)
     echo 'Sure, I fixed the bug! Here is what I did: added a nil check.'
     ;;
