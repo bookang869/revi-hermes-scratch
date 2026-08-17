@@ -157,6 +157,49 @@ run_gate() {
     pytest) (cd "$manifest_dir" && ruff check .) || { echo "gate: ruff check failed" >&2; return 1; } ;;
   esac
 
+  # Fails-before/passes-after check (test-quality gap, 2026-08-17, grilled
+  # with the user): a green test run proves nothing about whether the test
+  # actually exercises the bug -- a vacuous test (one that never calls the
+  # buggy path) would pass regardless of the fix and sail through every
+  # check above, which is the one way a non-fix could reach `main`
+  # unattended in AUTONOMOUS mode. Verify the new test specifically catches
+  # the bug: stash away everything Hermes changed EXCEPT the new test
+  # file(s) (restoring the original buggy source), confirm the test fails
+  # against that, then restore the fix and fall through to the existing
+  # "test must pass" check below. Only meaningful when the fix actually
+  # touched a non-test file -- if Hermes only wrote a test and changed
+  # nothing else, there's nothing to isolate, and the plain run below
+  # already rejects an unfixed bug on its own.
+  if [[ -n "$test_file_suffix" ]]; then
+    local fix_files=() line
+    while IFS= read -r line; do
+      [[ -z "$line" ]] && continue
+      [[ "$line" == *"$test_file_suffix" ]] && continue
+      fix_files+=("$line")
+    done <<< "$changed_files"
+
+    if [[ "${#fix_files[@]}" -gt 0 ]]; then
+      if ! git -C "$GITHUB_WORKSPACE" stash push --quiet --include-untracked -- "${fix_files[@]}"; then
+        echo "gate: failed to isolate the fix for the fails-before check -- rejecting this attempt" >&2
+        return 1
+      fi
+
+      echo "gate: running test WITHOUT the fix (must fail) -- verifying the new test isn't vacuous"
+      local before_rc=0
+      (cd "$manifest_dir" && eval "$test_command") || before_rc=$?
+
+      if ! git -C "$GITHUB_WORKSPACE" stash pop --quiet; then
+        echo "gate: failed to restore the fix after the fails-before check -- workspace may be in a bad state, rejecting this attempt" >&2
+        return 1
+      fi
+
+      if [[ "$before_rc" -eq 0 ]]; then
+        echo "gate: sibling test passes even without the fix -- vacuous test, rejected" >&2
+        return 1
+      fi
+    fi
+  fi
+
   if ! (cd "$manifest_dir" && eval "$test_command"); then
     echo "gate: test command failed: $test_command" >&2
     return 1

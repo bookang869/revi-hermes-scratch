@@ -268,6 +268,50 @@ GO
     echo '{"confidence_note": "High confidence: added nil check on Order.Customer", "summary": "Fixed nil pointer dereference in Summarize", "test_framework": "go"}'
     ;;
 
+  fail_vacuous_test)
+    # Real fix, real passing test -- but the test only exercises the
+    # already-working "Customer present" path, never the nil-Customer case
+    # that was actually broken. Passes every gate that predates the
+    # fails-before/passes-after check (build, vet, "test passes") since the
+    # test would pass identically against the original buggy Summarize too
+    # -- this is what the fails-before check exists to catch.
+    cat > "$APP_DIR/order.go" <<'GO'
+package main
+
+import "fmt"
+
+type Customer struct {
+	Name string
+}
+
+type Order struct {
+	Customer *Customer
+	Amount   int
+}
+
+func Summarize(o *Order) string {
+	if o.Customer == nil {
+		return fmt.Sprintf("unknown customer owes %d", o.Amount)
+	}
+	return fmt.Sprintf("%s owes %d", o.Customer.Name, o.Amount)
+}
+GO
+    cat > "$APP_DIR/order_test.go" <<'GO'
+package main
+
+import "testing"
+
+func TestSummarize_WithCustomer(t *testing.T) {
+	got := Summarize(&Order{Customer: &Customer{Name: "Bob"}, Amount: 42})
+	want := "Bob owes 42"
+	if got != want {
+		t.Errorf("Summarize() = %q, want %q", got, want)
+	}
+}
+GO
+    echo '{"confidence_note": "High confidence: added nil check on Order.Customer", "summary": "Fixed nil pointer dereference in Summarize", "test_framework": "go"}'
+    ;;
+
   rust_succeed)
     # Real fix + a real sibling test under tests/ (Cargo's integration-test
     # dir -- the only Cargo convention that's a genuinely separate file the
@@ -409,6 +453,47 @@ RUST
     echo '{"confidence_note": "Fixed it", "summary": "Matched on Option", "test_framework": "cargo"}'
     ;;
 
+  rust_fail_vacuous_test)
+    # Real fix, real passing test -- but the test only exercises the
+    # already-working "Some(Customer)" path, never the None case that was
+    # actually broken. Passes every gate that predates the fails-before/
+    # passes-after check, since it would pass identically against the
+    # original unwrap-on-None summarize too.
+    cat > "$APP_DIR/src/order.rs" <<'RUST'
+pub struct Customer {
+    pub name: String,
+}
+
+pub struct Order {
+    pub customer: Option<Customer>,
+    pub amount: i64,
+}
+
+pub fn summarize(o: &Order) -> String {
+    match &o.customer {
+        Some(c) => format!("{} owes {}", c.name, o.amount),
+        None => format!("unknown customer owes {}", o.amount),
+    }
+}
+RUST
+    mkdir -p "$APP_DIR/tests"
+    cat > "$APP_DIR/tests/order_test.rs" <<'RUST'
+use revi_fixture_app_rust::order::{summarize, Customer, Order};
+
+#[test]
+fn summarize_with_customer() {
+    let o = Order {
+        customer: Some(Customer {
+            name: "Bob".to_string(),
+        }),
+        amount: 42,
+    };
+    assert_eq!(summarize(&o), "Bob owes 42");
+}
+RUST
+    echo '{"confidence_note": "High confidence: matched on Option<Customer>", "summary": "Fixed unwrap-on-None panic in summarize", "test_framework": "cargo"}'
+    ;;
+
   node_succeed)
     # Real fix + a real sibling test that actually exercises it.
     cat > "$APP_DIR/order.js" <<'JS'
@@ -500,6 +585,41 @@ const { summarize } = require("./order");
 
 test("summarize with no customer", () => {
   expect(summarize({ amount: 42 })).toBe("unknown customer owes 42");
+});
+JS
+    echo '{"confidence_note": "High confidence: guarded on order.customer before dereferencing", "summary": "Fixed undefined property access in summarize", "test_framework": "jest"}'
+    ;;
+
+  node_fail_vacuous_test)
+    # Real fix, real passing test -- but the test only exercises the
+    # already-working "customer present" path, never the missing-customer
+    # case that was actually broken. Passes every gate that predates the
+    # fails-before/passes-after check, since it would pass identically
+    # against the original unguarded summarize too.
+    cat > "$APP_DIR/order.js" <<'JS'
+/**
+ * @typedef {{name: string}} Customer
+ * @typedef {{customer?: Customer, amount: number}} Order
+ */
+
+/**
+ * @param {Order} order
+ * @returns {string}
+ */
+function summarize(order) {
+  if (!order.customer) {
+    return `unknown customer owes ${order.amount}`;
+  }
+  return `${order.customer.name} owes ${order.amount}`;
+}
+
+module.exports = { summarize };
+JS
+    cat > "$APP_DIR/order.test.js" <<'JS'
+const { summarize } = require("./order");
+
+test("summarize with customer", () => {
+  expect(summarize({ customer: { name: "Bob" }, amount: 42 })).toBe("Bob owes 42");
 });
 JS
     echo '{"confidence_note": "High confidence: guarded on order.customer before dereferencing", "summary": "Fixed undefined property access in summarize", "test_framework": "jest"}'
@@ -598,6 +718,40 @@ from order import Order, summarize
 def test_summarize_nil_customer():
     got = summarize(Order(amount=42))
     assert got == "unknown customer owes 42"
+PY
+    echo '{"confidence_note": "High confidence: guarded on order.customer before dereferencing", "summary": "Fixed AttributeError on None customer in summarize", "test_framework": "pytest"}'
+    ;;
+
+  python_fail_vacuous_test)
+    # Real fix, real passing test -- but the test only exercises the
+    # already-working "customer present" path, never the None case that
+    # was actually broken. Passes every gate that predates the
+    # fails-before/passes-after check, since it would pass identically
+    # against the original unguarded summarize too.
+    cat > "$APP_DIR/order.py" <<'PY'
+class Customer:
+    def __init__(self, name):
+        self.name = name
+
+
+class Order:
+    def __init__(self, customer=None, amount=0):
+        self.customer = customer
+        self.amount = amount
+
+
+def summarize(order):
+    if order.customer is None:
+        return f"unknown customer owes {order.amount}"
+    return f"{order.customer.name} owes {order.amount}"
+PY
+    cat > "$APP_DIR/order_test.py" <<'PY'
+from order import Customer, Order, summarize
+
+
+def test_summarize_with_customer():
+    got = summarize(Order(customer=Customer("Bob"), amount=42))
+    assert got == "Bob owes 42"
 PY
     echo '{"confidence_note": "High confidence: guarded on order.customer before dereferencing", "summary": "Fixed AttributeError on None customer in summarize", "test_framework": "pytest"}'
     ;;

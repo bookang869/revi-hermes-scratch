@@ -263,6 +263,41 @@ run_scenario "python-no-test-file-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=
 assert_eq "$OUTCOME" "FAILED" "T: outcome (fix without order_test.py must not pass)"
 assert_eq "$ATTEMPTS" "3" "T: attempts_made"
 
+### Scenario U: real fix, real passing Go test -- but the test only exercises
+### the already-working "Customer present" path, never the nil case that was
+### actually broken. Proves the new fails-before/passes-after check (grilled
+### with the user, 2026-08-17) rejects a vacuous test that would pass
+### identically against the original buggy code.
+run_scenario "go-vacuous-test-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=fail_vacuous_test'
+assert_eq "$OUTCOME" "FAILED" "U: outcome (vacuous test must not pass)"
+assert_eq "$ATTEMPTS" "3" "U: attempts_made"
+assert_eq "$ESCALATED" "1" "U: escalation sent exactly once"
+
+### Scenario V: same as U, cargo slice.
+run_scenario "rust-vacuous-test-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=rust_fail_vacuous_test' "fixture-app-rust"
+assert_eq "$OUTCOME" "FAILED" "V: outcome (vacuous test must not pass)"
+assert_eq "$ATTEMPTS" "3" "V: attempts_made"
+
+### Scenario W: same as U, jest slice.
+run_scenario "node-vacuous-test-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=node_fail_vacuous_test' "fixture-app-node"
+assert_eq "$OUTCOME" "FAILED" "W: outcome (vacuous test must not pass)"
+assert_eq "$ATTEMPTS" "3" "W: attempts_made"
+
+### Scenario X: same as U, pytest slice. AUTONOMOUS variant proves this is
+### the one check standing between a non-fix and an unattended merge to main.
+run_scenario "python-vacuous-test-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=python_fail_vacuous_test' "fixture-app-python"
+assert_eq "$OUTCOME" "FAILED" "X: outcome (vacuous test must not pass)"
+assert_eq "$ATTEMPTS" "3" "X: attempts_made"
+
+run_scenario "python-vacuous-test-rejected-autonomous" "AUTONOMOUS" 'export FAKE_AGENT_MODE=python_fail_vacuous_test' "fixture-app-python"
+assert_eq "$OUTCOME" "FAILED" "X2: outcome (vacuous test blocks AUTONOMOUS the same as a failed test)"
+if grep -q '"severity": "critical"' <<< "$ESCALATION_PAYLOAD"; then
+  echo "PASS: X2: escalation payload severity=critical"
+else
+  echo "FAIL: X2: escalation payload wrong: $ESCALATION_PAYLOAD"
+  FAILURES=$((FAILURES + 1))
+fi
+
 echo ""
 if [[ "$FAILURES" -eq 0 ]]; then
   echo "ALL PASS"
