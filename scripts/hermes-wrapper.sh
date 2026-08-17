@@ -138,16 +138,17 @@ run_gate() {
   case "$framework" in
     go)    (cd "$manifest_dir" && go build ./...) || { echo "gate: go build failed" >&2; return 1; } ;;
     cargo) (cd "$manifest_dir" && cargo build) || { echo "gate: cargo build failed" >&2; return 1; } ;;
+    jest)  (cd "$manifest_dir" && tsc --noEmit) || { echo "gate: tsc build failed" >&2; return 1; } ;;
   esac
 
-  # Lint pass (PLAN 6.2, folded into 6.5's per-language passes). jest/pytest
-  # still have no lint toolchain installed (Dockerfile ponytail: add
-  # eslint/flake8 when those languages' 6.5 passes land), so those
-  # frameworks skip this check rather than gating on a tool that doesn't
-  # exist.
+  # Lint pass (PLAN 6.2, folded into 6.5's per-language passes). pytest still
+  # has no lint toolchain installed (Dockerfile ponytail: add flake8/ruff
+  # when Python's 6.5 pass lands), so that framework skips this check rather
+  # than gating on a tool that doesn't exist.
   case "$framework" in
     go)    (cd "$manifest_dir" && go vet ./...) || { echo "gate: go vet failed" >&2; return 1; } ;;
     cargo) (cd "$manifest_dir" && cargo clippy --all-targets -- -D warnings) || { echo "gate: cargo clippy failed" >&2; return 1; } ;;
+    jest)  (cd "$manifest_dir" && eslint .) || { echo "gate: eslint failed" >&2; return 1; } ;;
   esac
 
   if ! (cd "$manifest_dir" && eval "$test_command"); then

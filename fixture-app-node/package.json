@@ -1,0 +1,6 @@
+{
+  "name": "revi-fixture-app-node",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Node/TS fixture app for PLAN 6.5's per-language repair-loop rehearsal (seeded bug mirrors fixture-app-go/order.go and fixture-app-rust/src/order.rs)."
+}

@@ -29,6 +29,11 @@ case "$SERVICE_NAME" in
     echo "REVI_HEALTH_URL=http://localhost:8080/healthz"
     echo "FIXTURE_APP_DIR=fixture-app-rust"
     ;;
+  rehearsal-fixture-app-node)
+    echo "REVI_BOOT_COMMAND=cd fixture-app-node && node server.js"
+    echo "REVI_HEALTH_URL=http://localhost:8080/healthz"
+    echo "FIXTURE_APP_DIR=fixture-app-node"
+    ;;
   *)
     echo "resolve-boot-command: no boot command mapped for service '$SERVICE_NAME'" >&2
     exit 1

@@ -191,6 +191,35 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
+### Scenario M: jest path, full pass -- proves PLAN 6.5's generalized gate
+### (tsc build + eslint lint + jest test dispatch off the manifest jest
+### resolves, not go/cargo-only)
+run_scenario "node-succeed" "PR_REVIEW" 'export FAKE_AGENT_MODE=node_succeed' "fixture-app-node"
+assert_eq "$OUTCOME" "PASSED" "M: outcome (tsc+eslint+jest all pass)"
+assert_eq "$ATTEMPTS" "1" "M: attempts_made"
+
+### Scenario N: tsc build failure -- proves the never-before-exercised tsc
+### --noEmit gate actually rejects a non-parsing patch.
+run_scenario "node-build-failure-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=node_fail_broken_compile' "fixture-app-node"
+assert_eq "$OUTCOME" "FAILED" "N: outcome (tsc build failure must not pass)"
+assert_eq "$ATTEMPTS" "3" "N: attempts_made"
+
+### Scenario O: compiles, test passes, but eslint flags an unrelated `==`
+### comparison -- PLAN 6.2's lint gate, jest slice.
+run_scenario "node-lint-violation-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=node_fail_lint_violation' "fixture-app-node"
+assert_eq "$OUTCOME" "FAILED" "O: outcome (eslint failure must not pass)"
+assert_eq "$ATTEMPTS" "3" "O: attempts_made"
+assert_eq "$ESCALATED" "1" "O: escalation sent exactly once"
+
+run_scenario "node-lint-violation-rejected-autonomous" "AUTONOMOUS" 'export FAKE_AGENT_MODE=node_fail_lint_violation' "fixture-app-node"
+assert_eq "$OUTCOME" "FAILED" "O2: outcome (eslint violation blocks AUTONOMOUS the same as a failed test)"
+if grep -q '"severity": "critical"' <<< "$ESCALATION_PAYLOAD"; then
+  echo "PASS: O2: escalation payload severity=critical"
+else
+  echo "FAIL: O2: escalation payload wrong: $ESCALATION_PAYLOAD"
+  FAILURES=$((FAILURES + 1))
+fi
+
 echo ""
 if [[ "$FAILURES" -eq 0 ]]; then
   echo "ALL PASS"

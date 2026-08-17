@@ -380,6 +380,102 @@ RUST
     echo '{"confidence_note": "High confidence: matched on Option<Customer>", "summary": "Fixed unwrap-on-None panic in summarize", "test_framework": "cargo"}'
     ;;
 
+  node_succeed)
+    # Real fix + a real sibling test that actually exercises it.
+    cat > "$APP_DIR/order.js" <<'JS'
+/**
+ * @typedef {{name: string}} Customer
+ * @typedef {{customer?: Customer, amount: number}} Order
+ */
+
+/**
+ * @param {Order} order
+ * @returns {string}
+ */
+function summarize(order) {
+  if (!order.customer) {
+    return `unknown customer owes ${order.amount}`;
+  }
+  return `${order.customer.name} owes ${order.amount}`;
+}
+
+module.exports = { summarize };
+JS
+    cat > "$APP_DIR/order.test.js" <<'JS'
+const { summarize } = require("./order");
+
+test("summarize with no customer", () => {
+  expect(summarize({ amount: 42 })).toBe("unknown customer owes 42");
+});
+JS
+    echo '{"confidence_note": "High confidence: guarded on order.customer before dereferencing", "summary": "Fixed undefined property access in summarize", "test_framework": "jest"}'
+    ;;
+
+  node_fail_broken_compile)
+    # Test file written, but the "fix" does not even parse.
+    cat > "$APP_DIR/order.js" <<'JS'
+/**
+ * @param {{customer?: {name: string}, amount: number}} order
+ * @returns {string}
+ */
+function summarize(order) {
+  return `${order.customer.name} owes ${order.amount extraTokenBreaksCompile}`;
+}
+
+module.exports = { summarize };
+JS
+    cat > "$APP_DIR/order.test.js" <<'JS'
+const { summarize } = require("./order");
+
+test("summarize with no customer", () => {
+  expect(summarize({ amount: 42 })).toBe("unknown customer owes 42");
+});
+JS
+    echo '{"confidence_note": "Fixed it", "summary": "Guarded on order.customer", "test_framework": "jest"}'
+    ;;
+
+  node_fail_lint_violation)
+    # Real fix, real passing test -- but an unrelated function uses `==`
+    # instead of `===`. Compiles (tsc) and tests pass; only eslint's
+    # eqeqeq rule catches it -- isolates the lint gate from the build/test
+    # gates the other scenarios already cover.
+    cat > "$APP_DIR/order.js" <<'JS'
+/**
+ * @typedef {{name: string}} Customer
+ * @typedef {{customer?: Customer, amount: number}} Order
+ */
+
+/**
+ * @param {Order} order
+ * @returns {string}
+ */
+function summarize(order) {
+  if (!order.customer) {
+    return `unknown customer owes ${order.amount}`;
+  }
+  return `${order.customer.name} owes ${order.amount}`;
+}
+
+/**
+ * @param {Order} order
+ * @returns {boolean}
+ */
+function isRoundAmount(order) {
+  return order.amount == 0;
+}
+
+module.exports = { summarize, isRoundAmount };
+JS
+    cat > "$APP_DIR/order.test.js" <<'JS'
+const { summarize } = require("./order");
+
+test("summarize with no customer", () => {
+  expect(summarize({ amount: 42 })).toBe("unknown customer owes 42");
+});
+JS
+    echo '{"confidence_note": "High confidence: guarded on order.customer before dereferencing", "summary": "Fixed undefined property access in summarize", "test_framework": "jest"}'
+    ;;
+
   malformed_json)
     echo 'Sure, I fixed the bug! Here is what I did: added a nil check.'
     ;;
