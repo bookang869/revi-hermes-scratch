@@ -8,7 +8,6 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WRAPPER="$SCRIPT_DIR/hermes-wrapper.sh"
 FAKE_AGENT="$SCRIPT_DIR/fake-agent.sh"
-FIXTURE_SRC="$SCRIPT_DIR/../fixture-app"
 
 FAILURES=0
 RECEIVER_PORT=8770
@@ -25,14 +24,16 @@ assert_eq() {
 
 # Sets up a throwaway git repo with the fixture app + scripts, runs the
 # wrapper, and echoes GITHUB_OUTPUT's contents plus whether escalate.sh's
-# target received a call.
+# target received a call. fixture_dir (default fixture-app) selects which
+# language's fixture app gets copied in -- PLAN 6.5's per-language passes
+# reuse this same harness against fixture-app-rust etc.
 run_scenario() {
-  local name="$1" revi_mode="$2" agent_mode_env="$3"
+  local name="$1" revi_mode="$2" agent_mode_env="$3" fixture_dir="${4:-fixture-app}"
   echo ""
   echo "=== scenario: $name ==="
 
   local repo; repo="$(mktemp -d)"
-  cp -r "$FIXTURE_SRC" "$repo/fixture-app"
+  cp -r "$SCRIPT_DIR/../$fixture_dir" "$repo/$fixture_dir"
   mkdir -p "$repo/scripts"
   cp "$SCRIPT_DIR/detect-test-framework.sh" "$SCRIPT_DIR/escalate.sh" "$repo/scripts/"
   ( cd "$repo" && git init -q && git add -A && git -c user.email=t@t -c user.name=t commit -qm seed )
@@ -57,7 +58,7 @@ run_scenario() {
     export ERROR_SUMMARY="invalid memory address or nil pointer dereference"
     export REVI_MODE="$revi_mode"
     export REVI_AGENT_COMMAND="bash $FAKE_AGENT"
-    export FIXTURE_APP_DIR="$repo/fixture-app"
+    export FIXTURE_APP_DIR="$repo/$fixture_dir"
     export FAKE_AGENT_COUNTER_FILE="$counter_file"
     export REVI_ESCALATION_WEBHOOK_URL="http://127.0.0.1:$RECEIVER_PORT"
     export REVI_ESCALATION_WEBHOOK_SECRET="wrapper-test-secret"
@@ -159,6 +160,34 @@ if grep -q '"severity": "critical"' <<< "$ESCALATION_PAYLOAD"; then
   echo "PASS: I2: escalation payload severity=critical"
 else
   echo "FAIL: I2: escalation payload wrong: $ESCALATION_PAYLOAD"
+  FAILURES=$((FAILURES + 1))
+fi
+
+### Scenario J: cargo path, full pass -- proves PLAN 6.5's generalized gate
+### (build+lint+test dispatch off the manifest cargo resolves, not go-only)
+run_scenario "rust-succeed" "PR_REVIEW" 'export FAKE_AGENT_MODE=rust_succeed' "fixture-app-rust"
+assert_eq "$OUTCOME" "PASSED" "J: outcome (cargo build+clippy+test all pass)"
+assert_eq "$ATTEMPTS" "1" "J: attempts_made"
+
+### Scenario K: cargo build failure -- proves the never-before-exercised
+### cargo build gate actually rejects a non-compiling patch.
+run_scenario "rust-build-failure-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=rust_fail_broken_compile' "fixture-app-rust"
+assert_eq "$OUTCOME" "FAILED" "K: outcome (cargo build failure must not pass)"
+assert_eq "$ATTEMPTS" "3" "K: attempts_made"
+
+### Scenario L: compiles, test passes, but `cargo clippy` flags an unrelated
+### len()==0 comparison -- PLAN 6.2's lint gate, cargo slice.
+run_scenario "rust-lint-violation-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=rust_fail_lint_violation' "fixture-app-rust"
+assert_eq "$OUTCOME" "FAILED" "L: outcome (cargo clippy failure must not pass)"
+assert_eq "$ATTEMPTS" "3" "L: attempts_made"
+assert_eq "$ESCALATED" "1" "L: escalation sent exactly once"
+
+run_scenario "rust-lint-violation-rejected-autonomous" "AUTONOMOUS" 'export FAKE_AGENT_MODE=rust_fail_lint_violation' "fixture-app-rust"
+assert_eq "$OUTCOME" "FAILED" "L2: outcome (cargo clippy violation blocks AUTONOMOUS the same as a failed test)"
+if grep -q '"severity": "critical"' <<< "$ESCALATION_PAYLOAD"; then
+  echo "PASS: L2: escalation payload severity=critical"
+else
+  echo "FAIL: L2: escalation payload wrong: $ESCALATION_PAYLOAD"
   FAILURES=$((FAILURES + 1))
 fi
 

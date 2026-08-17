@@ -140,14 +140,14 @@ run_gate() {
     cargo) (cd "$manifest_dir" && cargo build) || { echo "gate: cargo build failed" >&2; return 1; } ;;
   esac
 
-  # Lint pass (PLAN 6.2). Only go has a lint tool available in the runner
-  # image today -- `go vet` ships with the toolchain already installed for
-  # build/test, no new apt/binary dependency. cargo/jest/pytest have no lint
-  # toolchain installed yet (Dockerfile ponytail: add clippy/eslint/flake8
-  # if/when a real polyglot app lands), so those frameworks skip this check
-  # rather than gating on a tool that doesn't exist.
+  # Lint pass (PLAN 6.2, folded into 6.5's per-language passes). jest/pytest
+  # still have no lint toolchain installed (Dockerfile ponytail: add
+  # eslint/flake8 when those languages' 6.5 passes land), so those
+  # frameworks skip this check rather than gating on a tool that doesn't
+  # exist.
   case "$framework" in
-    go) (cd "$manifest_dir" && go vet ./...) || { echo "gate: go vet failed" >&2; return 1; } ;;
+    go)    (cd "$manifest_dir" && go vet ./...) || { echo "gate: go vet failed" >&2; return 1; } ;;
+    cargo) (cd "$manifest_dir" && cargo clippy --all-targets -- -D warnings) || { echo "gate: cargo clippy failed" >&2; return 1; } ;;
   esac
 
   if ! (cd "$manifest_dir" && eval "$test_command"); then

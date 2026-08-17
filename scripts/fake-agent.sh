@@ -268,6 +268,118 @@ GO
     echo '{"confidence_note": "High confidence: added nil check on Order.Customer", "summary": "Fixed nil pointer dereference in Summarize", "test_framework": "go"}'
     ;;
 
+  rust_succeed)
+    # Real fix + a real test (in the same file -- cargo has no sibling-file
+    # suffix convention, per hermes-wrapper.sh's test_file_suffix comment).
+    cat > "$APP_DIR/src/order.rs" <<'RUST'
+pub struct Customer {
+    pub name: String,
+}
+
+pub struct Order {
+    pub customer: Option<Customer>,
+    pub amount: i64,
+}
+
+pub fn summarize(o: &Order) -> String {
+    match &o.customer {
+        Some(c) => format!("{} owes {}", c.name, o.amount),
+        None => format!("unknown customer owes {}", o.amount),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn summarize_nil_customer() {
+        let o = Order {
+            customer: None,
+            amount: 42,
+        };
+        assert_eq!(summarize(&o), "unknown customer owes 42");
+    }
+}
+RUST
+    echo '{"confidence_note": "High confidence: matched on Option<Customer>", "summary": "Fixed unwrap-on-None panic in summarize", "test_framework": "cargo"}'
+    ;;
+
+  rust_fail_broken_compile)
+    # The "fix" does not even compile.
+    cat > "$APP_DIR/src/order.rs" <<'RUST'
+pub struct Customer {
+    pub name: String,
+}
+
+pub struct Order {
+    pub customer: Option<Customer>,
+    pub amount: i64,
+}
+
+pub fn summarize(o: &Order) -> String {
+    format!("{} owes {}", o.customer.as_ref().unwrap().name, o.amount extraTokenBreaksCompile)
+}
+RUST
+    echo '{"confidence_note": "Fixed it", "summary": "Matched on Option", "test_framework": "cargo"}'
+    ;;
+
+  rust_fail_lint_violation)
+    # Real fix, real passing test -- but an unrelated function has a
+    # clippy-flagged len()==0 comparison (clippy::len_zero, on by default,
+    # not just pedantic). Compiles and tests pass; only `cargo clippy`
+    # catches it -- isolates the lint gate from the build/test gates the
+    # other scenarios already cover.
+    cat > "$APP_DIR/src/order.rs" <<'RUST'
+pub struct Customer {
+    pub name: String,
+}
+
+pub struct Order {
+    pub customer: Option<Customer>,
+    pub amount: i64,
+}
+
+pub fn summarize(o: &Order) -> String {
+    match &o.customer {
+        Some(c) => format!("{} owes {}", c.name, o.amount),
+        None => format!("unknown customer owes {}", o.amount),
+    }
+}
+
+pub fn has_customer_name(o: &Order) -> bool {
+    match &o.customer {
+        Some(c) => c.name.len() == 0,
+        None => true,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn summarize_nil_customer() {
+        let o = Order {
+            customer: None,
+            amount: 42,
+        };
+        assert_eq!(summarize(&o), "unknown customer owes 42");
+    }
+
+    #[test]
+    fn has_customer_name_nil_customer() {
+        let o = Order {
+            customer: None,
+            amount: 42,
+        };
+        assert!(has_customer_name(&o));
+    }
+}
+RUST
+    echo '{"confidence_note": "High confidence: matched on Option<Customer>", "summary": "Fixed unwrap-on-None panic in summarize", "test_framework": "cargo"}'
+    ;;
+
   malformed_json)
     echo 'Sure, I fixed the bug! Here is what I did: added a nil check.'
     ;;
