@@ -220,6 +220,35 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
+### Scenario P: pytest path, full pass -- proves PLAN 6.5's generalized gate
+### (py_compile build + ruff lint + pytest test dispatch off the manifest
+### pytest resolves, not go/cargo/jest-only)
+run_scenario "python-succeed" "PR_REVIEW" 'export FAKE_AGENT_MODE=python_succeed' "fixture-app-python"
+assert_eq "$OUTCOME" "PASSED" "P: outcome (py_compile+ruff+pytest all pass)"
+assert_eq "$ATTEMPTS" "1" "P: attempts_made"
+
+### Scenario Q: py_compile syntax failure -- proves the never-before-
+### exercised python3 -m py_compile gate actually rejects a non-parsing patch.
+run_scenario "python-build-failure-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=python_fail_broken_compile' "fixture-app-python"
+assert_eq "$OUTCOME" "FAILED" "Q: outcome (py_compile failure must not pass)"
+assert_eq "$ATTEMPTS" "3" "Q: attempts_made"
+
+### Scenario R: compiles, test passes, but `ruff check` flags an unrelated
+### `== None` comparison (E711) -- PLAN 6.2's lint gate, pytest slice.
+run_scenario "python-lint-violation-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=python_fail_lint_violation' "fixture-app-python"
+assert_eq "$OUTCOME" "FAILED" "R: outcome (ruff check failure must not pass)"
+assert_eq "$ATTEMPTS" "3" "R: attempts_made"
+assert_eq "$ESCALATED" "1" "R: escalation sent exactly once"
+
+run_scenario "python-lint-violation-rejected-autonomous" "AUTONOMOUS" 'export FAKE_AGENT_MODE=python_fail_lint_violation' "fixture-app-python"
+assert_eq "$OUTCOME" "FAILED" "R2: outcome (ruff check violation blocks AUTONOMOUS the same as a failed test)"
+if grep -q '"severity": "critical"' <<< "$ESCALATION_PAYLOAD"; then
+  echo "PASS: R2: escalation payload severity=critical"
+else
+  echo "FAIL: R2: escalation payload wrong: $ESCALATION_PAYLOAD"
+  FAILURES=$((FAILURES + 1))
+fi
+
 echo ""
 if [[ "$FAILURES" -eq 0 ]]; then
   echo "ALL PASS"

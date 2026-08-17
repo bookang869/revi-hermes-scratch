@@ -1,0 +1,8 @@
+[tool.ruff.lint]
+# ruff's bare default select set (E4/E7 subset + E9/F) does not actually
+# include E711 ("== None" vs "is None") despite E711 being nominally an E7
+# code -- confirmed empirically, not from docs. Select the full E
+# (pycodestyle) + F (pyflakes) families explicitly, same reason eslint.config.js
+# in fixture-app-node has to name eqeqeq explicitly: neither tool enables a
+# broad ruleset without an explicit config.
+select = ["E", "F"]

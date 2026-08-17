@@ -476,6 +476,103 @@ JS
     echo '{"confidence_note": "High confidence: guarded on order.customer before dereferencing", "summary": "Fixed undefined property access in summarize", "test_framework": "jest"}'
     ;;
 
+  python_succeed)
+    # Real fix + a real test (pytest's default `test_*.py` discovery
+    # convention -- pytest has no sibling-file suffix convention per
+    # hermes-wrapper.sh's test_file_suffix comment, same as cargo).
+    cat > "$APP_DIR/order.py" <<'PY'
+class Customer:
+    def __init__(self, name):
+        self.name = name
+
+
+class Order:
+    def __init__(self, customer=None, amount=0):
+        self.customer = customer
+        self.amount = amount
+
+
+def summarize(order):
+    if order.customer is None:
+        return f"unknown customer owes {order.amount}"
+    return f"{order.customer.name} owes {order.amount}"
+PY
+    cat > "$APP_DIR/test_order.py" <<'PY'
+from order import Order, summarize
+
+
+def test_summarize_nil_customer():
+    got = summarize(Order(amount=42))
+    assert got == "unknown customer owes 42"
+PY
+    echo '{"confidence_note": "High confidence: guarded on order.customer before dereferencing", "summary": "Fixed AttributeError on None customer in summarize", "test_framework": "pytest"}'
+    ;;
+
+  python_fail_broken_compile)
+    # The "fix" does not even parse.
+    cat > "$APP_DIR/order.py" <<'PY'
+class Customer:
+    def __init__(self, name):
+        self.name = name
+
+
+class Order:
+    def __init__(self, customer=None, amount=0):
+        self.customer = customer
+        self.amount = amount
+
+
+def summarize(order):
+    return f"{order.customer.name} owes {order.amount extraTokenBreaksSyntax}"
+PY
+    cat > "$APP_DIR/test_order.py" <<'PY'
+from order import Order, summarize
+
+
+def test_summarize_nil_customer():
+    summarize(Order(amount=42))
+PY
+    echo '{"confidence_note": "Fixed it", "summary": "Guarded on order.customer", "test_framework": "pytest"}'
+    ;;
+
+  python_fail_lint_violation)
+    # Real fix, real passing test -- but an unrelated function compares to
+    # None with `==` instead of `is` (ruff/flake8 E711, on by default).
+    # Compiles (py_compile) and tests pass; only `ruff check` catches it --
+    # isolates the lint gate from the build/test gates the other scenarios
+    # already cover.
+    cat > "$APP_DIR/order.py" <<'PY'
+class Customer:
+    def __init__(self, name):
+        self.name = name
+
+
+class Order:
+    def __init__(self, customer=None, amount=0):
+        self.customer = customer
+        self.amount = amount
+
+
+def summarize(order):
+    if order.customer is None:
+        return f"unknown customer owes {order.amount}"
+    return f"{order.customer.name} owes {order.amount}"
+
+
+def has_customer(order):
+    return order.customer == None
+PY
+    cat > "$APP_DIR/test_order.py" <<'PY'
+from order import Order, summarize
+
+
+def test_summarize_nil_customer():
+    got = summarize(Order(amount=42))
+    assert got == "unknown customer owes 42"
+PY
+    echo '{"confidence_note": "High confidence: guarded on order.customer before dereferencing", "summary": "Fixed AttributeError on None customer in summarize", "test_framework": "pytest"}'
+    ;;
+
   malformed_json)
     echo 'Sure, I fixed the bug! Here is what I did: added a nil check.'
     ;;

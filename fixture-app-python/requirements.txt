@@ -1,0 +1,5 @@
+# No external deps -- this fixture is stdlib-only. This file exists purely
+# as the manifest marker detect-test-framework.sh's L2 walk resolves to
+# "pytest" (TRD FR-02); pytest/ruff themselves are installed globally in the
+# runner image's Dockerfile, not per-project, so nothing here ever gets
+# `pip install -r`'d.

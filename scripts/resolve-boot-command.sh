@@ -34,6 +34,11 @@ case "$SERVICE_NAME" in
     echo "REVI_HEALTH_URL=http://localhost:8080/healthz"
     echo "FIXTURE_APP_DIR=fixture-app-node"
     ;;
+  rehearsal-fixture-app-python)
+    echo "REVI_BOOT_COMMAND=cd fixture-app-python && python3 server.py"
+    echo "REVI_HEALTH_URL=http://localhost:8080/healthz"
+    echo "FIXTURE_APP_DIR=fixture-app-python"
+    ;;
   *)
     echo "resolve-boot-command: no boot command mapped for service '$SERVICE_NAME'" >&2
     exit 1
