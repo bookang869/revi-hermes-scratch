@@ -1,10 +1,3 @@
-# summarize is deliberately buggy: it accesses order.customer.name without
-# checking whether customer is present, so an Order with no Customer
-# attached raises AttributeError -- this is the seeded bug used to test the
-# repair loop end-to-end (mirrors the Go/Rust/Node fixture apps'
-# order.go/order.rs/order.js).
-
-
 class Customer:
     def __init__(self, name):
         self.name = name
@@ -17,4 +10,6 @@ class Order:
 
 
 def summarize(order):
+    if order.customer is None:
+        return f"unknown customer owes {order.amount}"
     return f"{order.customer.name} owes {order.amount}"
