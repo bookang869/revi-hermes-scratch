@@ -130,12 +130,6 @@ jobs:
       ERROR_SUMMARY: ${{ github.event.client_payload.error_summary }}
       LOG_CONTEXT: ${{ github.event.client_payload.log_context }}
       REVI_MODE: AUTONOMOUS
-      # Phase 4.1 (TRD FR-03): operator-set, workflow-level env vars -- this
-      # single-tenant deployment targets exactly one known repo, so these
-      # are static config here rather than a platform config file. Points
-      # at the fixture app until Phase 6 wires in a real protected app.
-      REVI_BOOT_COMMAND: "cd fixture-app && go run ."
-      REVI_HEALTH_URL: "http://localhost:8080/healthz"
     steps:
       # persist-credentials: false -- checkout's default leaves its own
       # http.extraheader (default GITHUB_TOKEN) configured in the local git
@@ -150,6 +144,13 @@ jobs:
           persist-credentials: false
       - name: Confirm routing
         run: echo "mode routed to AUTONOMOUS"
+      # PLAN 6.5: multiple fixture apps (Go, Rust, Node/TS, Python) now
+      # coexist in this repo, so which one to boot depends on which service
+      # the alert names -- resolves SERVICE_NAME to a boot command/health
+      # url via a fixed table (scripts/resolve-boot-command.sh) instead of
+      # the single hardcoded pair this used to be.
+      - name: Resolve boot command
+        run: bash scripts/resolve-boot-command.sh >> "$GITHUB_ENV"
       - name: Confirm Hermes preinstalled
         run: hermes --version
       # Phase 5.2 (PLAN 5.2): restore ~/.hermes (skills + session memory,
