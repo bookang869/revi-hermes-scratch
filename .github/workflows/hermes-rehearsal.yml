@@ -208,6 +208,7 @@ jobs:
       # override the resolved value (health_url's documented use: pointing
       # at a dead port to deliberately rehearse APP_BOOT_FAILURE).
       - name: Resolve boot command
+        shell: bash
         run: |
           resolved="$(bash scripts/resolve-boot-command.sh)"
           boot="$(grep '^REVI_BOOT_COMMAND=' <<< "$resolved")"
