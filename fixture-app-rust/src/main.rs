@@ -1,6 +1,4 @@
-mod order;
-
-use order::{summarize, Order};
+use revi_fixture_app_rust::order::{summarize, Order};
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 

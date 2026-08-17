@@ -269,8 +269,11 @@ GO
     ;;
 
   rust_succeed)
-    # Real fix + a real test (in the same file -- cargo has no sibling-file
-    # suffix convention, per hermes-wrapper.sh's test_file_suffix comment).
+    # Real fix + a real sibling test under tests/ (Cargo's integration-test
+    # dir -- the only Cargo convention that's a genuinely separate file the
+    # way order_test.go/order.test.js/order_test.py are, per PLAN 6.5's
+    # follow-up; requires src/lib.rs to expose `pub mod order` since
+    # integration tests link against the crate from outside).
     cat > "$APP_DIR/src/order.rs" <<'RUST'
 pub struct Customer {
     pub name: String,
@@ -287,26 +290,25 @@ pub fn summarize(o: &Order) -> String {
         None => format!("unknown customer owes {}", o.amount),
     }
 }
+RUST
+    mkdir -p "$APP_DIR/tests"
+    cat > "$APP_DIR/tests/order_test.rs" <<'RUST'
+use revi_fixture_app_rust::order::{summarize, Order};
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn summarize_nil_customer() {
-        let o = Order {
-            customer: None,
-            amount: 42,
-        };
-        assert_eq!(summarize(&o), "unknown customer owes 42");
-    }
+#[test]
+fn summarize_nil_customer() {
+    let o = Order {
+        customer: None,
+        amount: 42,
+    };
+    assert_eq!(summarize(&o), "unknown customer owes 42");
 }
 RUST
     echo '{"confidence_note": "High confidence: matched on Option<Customer>", "summary": "Fixed unwrap-on-None panic in summarize", "test_framework": "cargo"}'
     ;;
 
   rust_fail_broken_compile)
-    # The "fix" does not even compile.
+    # Test file written, but the "fix" does not even compile.
     cat > "$APP_DIR/src/order.rs" <<'RUST'
 pub struct Customer {
     pub name: String,
@@ -319,6 +321,19 @@ pub struct Order {
 
 pub fn summarize(o: &Order) -> String {
     format!("{} owes {}", o.customer.as_ref().unwrap().name, o.amount extraTokenBreaksCompile)
+}
+RUST
+    mkdir -p "$APP_DIR/tests"
+    cat > "$APP_DIR/tests/order_test.rs" <<'RUST'
+use revi_fixture_app_rust::order::{summarize, Order};
+
+#[test]
+fn summarize_nil_customer() {
+    let o = Order {
+        customer: None,
+        amount: 42,
+    };
+    let _ = summarize(&o);
 }
 RUST
     echo '{"confidence_note": "Fixed it", "summary": "Matched on Option", "test_framework": "cargo"}'
@@ -353,31 +368,45 @@ pub fn has_customer_name(o: &Order) -> bool {
         None => true,
     }
 }
+RUST
+    mkdir -p "$APP_DIR/tests"
+    cat > "$APP_DIR/tests/order_test.rs" <<'RUST'
+use revi_fixture_app_rust::order::{summarize, Order};
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn summarize_nil_customer() {
-        let o = Order {
-            customer: None,
-            amount: 42,
-        };
-        assert_eq!(summarize(&o), "unknown customer owes 42");
-    }
-
-    #[test]
-    fn has_customer_name_nil_customer() {
-        let o = Order {
-            customer: None,
-            amount: 42,
-        };
-        assert!(has_customer_name(&o));
-    }
+#[test]
+fn summarize_nil_customer() {
+    let o = Order {
+        customer: None,
+        amount: 42,
+    };
+    assert_eq!(summarize(&o), "unknown customer owes 42");
 }
 RUST
     echo '{"confidence_note": "High confidence: matched on Option<Customer>", "summary": "Fixed unwrap-on-None panic in summarize", "test_framework": "cargo"}'
+    ;;
+
+  rust_fail_no_test)
+    # Fixes the bug but never writes a tests/*_test.rs file -- must be
+    # rejected regardless of cargo test/clippy passing, per PLAN's "AI
+    # fails to write the L1/L2 test -> reject patch" rule.
+    cat > "$APP_DIR/src/order.rs" <<'RUST'
+pub struct Customer {
+    pub name: String,
+}
+
+pub struct Order {
+    pub customer: Option<Customer>,
+    pub amount: i64,
+}
+
+pub fn summarize(o: &Order) -> String {
+    match &o.customer {
+        Some(c) => format!("{} owes {}", c.name, o.amount),
+        None => format!("unknown customer owes {}", o.amount),
+    }
+}
+RUST
+    echo '{"confidence_note": "Fixed it", "summary": "Matched on Option", "test_framework": "cargo"}'
     ;;
 
   node_succeed)
@@ -477,9 +506,9 @@ JS
     ;;
 
   python_succeed)
-    # Real fix + a real test (pytest's default `test_*.py` discovery
-    # convention -- pytest has no sibling-file suffix convention per
-    # hermes-wrapper.sh's test_file_suffix comment, same as cargo).
+    # Real fix + a real sibling test (order_test.py -- pytest's *_test.py
+    # discovery convention, matching order_test.go/order.test.js's suffix
+    # shape rather than the test_*.py prefix, per PLAN 6.5's follow-up).
     cat > "$APP_DIR/order.py" <<'PY'
 class Customer:
     def __init__(self, name):
@@ -497,7 +526,7 @@ def summarize(order):
         return f"unknown customer owes {order.amount}"
     return f"{order.customer.name} owes {order.amount}"
 PY
-    cat > "$APP_DIR/test_order.py" <<'PY'
+    cat > "$APP_DIR/order_test.py" <<'PY'
 from order import Order, summarize
 
 
@@ -509,7 +538,7 @@ PY
     ;;
 
   python_fail_broken_compile)
-    # The "fix" does not even parse.
+    # Test file written, but the "fix" does not even parse.
     cat > "$APP_DIR/order.py" <<'PY'
 class Customer:
     def __init__(self, name):
@@ -525,7 +554,7 @@ class Order:
 def summarize(order):
     return f"{order.customer.name} owes {order.amount extraTokenBreaksSyntax}"
 PY
-    cat > "$APP_DIR/test_order.py" <<'PY'
+    cat > "$APP_DIR/order_test.py" <<'PY'
 from order import Order, summarize
 
 
@@ -562,7 +591,7 @@ def summarize(order):
 def has_customer(order):
     return order.customer == None
 PY
-    cat > "$APP_DIR/test_order.py" <<'PY'
+    cat > "$APP_DIR/order_test.py" <<'PY'
 from order import Order, summarize
 
 
@@ -571,6 +600,30 @@ def test_summarize_nil_customer():
     assert got == "unknown customer owes 42"
 PY
     echo '{"confidence_note": "High confidence: guarded on order.customer before dereferencing", "summary": "Fixed AttributeError on None customer in summarize", "test_framework": "pytest"}'
+    ;;
+
+  python_fail_no_test)
+    # Fixes the bug but never writes an order_test.py file -- must be
+    # rejected regardless of py_compile/ruff/pytest passing, per PLAN's "AI
+    # fails to write the L1/L2 test -> reject patch" rule.
+    cat > "$APP_DIR/order.py" <<'PY'
+class Customer:
+    def __init__(self, name):
+        self.name = name
+
+
+class Order:
+    def __init__(self, customer=None, amount=0):
+        self.customer = customer
+        self.amount = amount
+
+
+def summarize(order):
+    if order.customer is None:
+        return f"unknown customer owes {order.amount}"
+    return f"{order.customer.name} owes {order.amount}"
+PY
+    echo '{"confidence_note": "Fixed it", "summary": "Guarded on order.customer", "test_framework": "pytest"}'
     ;;
 
   malformed_json)

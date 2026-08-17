@@ -91,7 +91,7 @@ manifest_for() {
 # file) would gate on just one. Fine for a single-service repo/fixture.
 find_manifest_dir() {
   local manifest="$1" changed_file dir
-  changed_file="$(git -C "$GITHUB_WORKSPACE" status --porcelain | awk '{print $NF}' | head -1)"
+  changed_file="$(git -C "$GITHUB_WORKSPACE" status --porcelain --untracked-files=all | awk '{print $NF}' | head -1)"
   [[ -z "$changed_file" ]] && return 1
 
   dir="$(cd "$GITHUB_WORKSPACE/$(dirname "$changed_file")" && pwd)"
@@ -120,14 +120,21 @@ run_gate() {
 
   # A green test run proves nothing if no test file actually changed --
   # enforce PLAN's "AI fails to write the L1/L2 test -> reject patch" rule
-  # directly, rather than trusting the test command's exit code alone.
-  # Cargo/pytest have no suffix convention in the TRD, so this check is
-  # skipped for those two (ponytail: revisit if a convention gets adopted).
+  # directly, rather than trusting the test command's exit code alone. All
+  # four frameworks now have a non-empty suffix (PLAN 6.5 follow-up,
+  # 2026-08-17) -- Cargo's targets its tests/ integration-test directory,
+  # since in-crate #[cfg(test)] mods aren't a separate file to check for.
+  # --untracked-files=all is required here: plain `git status --porcelain`
+  # collapses a brand-new untracked directory (tests/, which doesn't exist
+  # in the seeded fixture) into a single `?? fixture-app-rust/tests/` line
+  # instead of listing the file inside it, so the suffix grep below would
+  # never match a real tests/order_test.rs -- caught by scenario J
+  # regressing to FAILED once Cargo's suffix went from empty to non-empty.
   if [[ -n "$test_file_suffix" ]]; then
     local manifest_rel changed_files
     manifest_rel="${manifest_dir#"$GITHUB_WORKSPACE"}"
     manifest_rel="${manifest_rel#/}"
-    changed_files="$(git -C "$GITHUB_WORKSPACE" status --porcelain | awk '{print $NF}')"
+    changed_files="$(git -C "$GITHUB_WORKSPACE" status --porcelain --untracked-files=all | awk '{print $NF}')"
     [[ -n "$manifest_rel" ]] && changed_files="$(grep -- "^${manifest_rel}/" <<< "$changed_files")"
     if ! grep -q -- "${test_file_suffix}\$" <<< "$changed_files"; then
       echo "gate: no changed file under $manifest_dir matching *$test_file_suffix -- test not written" >&2

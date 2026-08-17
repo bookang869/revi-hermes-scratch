@@ -249,6 +249,20 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
+### Scenario S: cargo path, fix without a tests/*_test.rs file -- proves the
+### newly-added Cargo sibling-test-file check (PLAN 6.5 follow-up,
+### 2026-08-17) actually rejects a patch the same way Go's fail_no_test does.
+run_scenario "rust-no-test-file-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=rust_fail_no_test' "fixture-app-rust"
+assert_eq "$OUTCOME" "FAILED" "S: outcome (fix without tests/*_test.rs must not pass)"
+assert_eq "$ATTEMPTS" "3" "S: attempts_made"
+
+### Scenario T: pytest path, fix without an order_test.py file -- proves the
+### newly-added pytest sibling-test-file check (PLAN 6.5 follow-up,
+### 2026-08-17) actually rejects a patch the same way Go's fail_no_test does.
+run_scenario "python-no-test-file-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=python_fail_no_test' "fixture-app-python"
+assert_eq "$OUTCOME" "FAILED" "T: outcome (fix without order_test.py must not pass)"
+assert_eq "$ATTEMPTS" "3" "T: attempts_made"
+
 echo ""
 if [[ "$FAILURES" -eq 0 ]]; then
   echo "ALL PASS"
