@@ -20,9 +20,9 @@ set -euo pipefail
 
 case "$SERVICE_NAME" in
   rehearsal-fixture-app)
-    echo "REVI_BOOT_COMMAND=cd fixture-app && go run ."
+    echo "REVI_BOOT_COMMAND=cd fixture-app-go && go run ."
     echo "REVI_HEALTH_URL=http://localhost:8080/healthz"
-    echo "FIXTURE_APP_DIR=fixture-app"
+    echo "FIXTURE_APP_DIR=fixture-app-go"
     ;;
   rehearsal-fixture-app-rust)
     echo "REVI_BOOT_COMMAND=cd fixture-app-rust && cargo run"

@@ -24,11 +24,11 @@ assert_eq() {
 
 # Sets up a throwaway git repo with the fixture app + scripts, runs the
 # wrapper, and echoes GITHUB_OUTPUT's contents plus whether escalate.sh's
-# target received a call. fixture_dir (default fixture-app) selects which
+# target received a call. fixture_dir (default fixture-app-go) selects which
 # language's fixture app gets copied in -- PLAN 6.5's per-language passes
 # reuse this same harness against fixture-app-rust etc.
 run_scenario() {
-  local name="$1" revi_mode="$2" agent_mode_env="$3" fixture_dir="${4:-fixture-app}"
+  local name="$1" revi_mode="$2" agent_mode_env="$3" fixture_dir="${4:-fixture-app-go}"
   echo ""
   echo "=== scenario: $name ==="
 

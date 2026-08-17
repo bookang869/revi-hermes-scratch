@@ -7,7 +7,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SMOKE="$SCRIPT_DIR/smoke-test.sh"
-FIXTURE_SRC="$SCRIPT_DIR/../fixture-app"
+FIXTURE_SRC="$SCRIPT_DIR/../fixture-app-go"
 
 FAILURES=0
 PORT_BASE=8890
@@ -41,7 +41,7 @@ run_scenario() {
   echo "=== scenario: $name ==="
 
   local repo; repo="$(mktemp -d)"
-  cp -r "$FIXTURE_SRC" "$repo/fixture-app"
+  cp -r "$FIXTURE_SRC" "$repo/fixture-app-go"
 
   local recv_port=$((PORT_BASE + 1)); PORT_BASE=$recv_port
   local recv_out; recv_out="$(mktemp)"
@@ -76,7 +76,7 @@ run_scenario() {
 }
 
 ### Scenario A: app boots and answers /healthz within budget
-run_scenario "healthy" "cd fixture-app && go run ." "http://localhost:8080/healthz" 15
+run_scenario "healthy" "cd fixture-app-go && go run ." "http://localhost:8080/healthz" 15
 assert_eq "$SMOKE_EXIT" "0" "A: smoke-test.sh exit code"
 assert_eq "$OUTCOME" "PASSED" "A: outcome output"
 assert_eq "$ESCALATION_PAYLOAD" "" "A: no escalation on healthy boot"
