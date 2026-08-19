@@ -98,13 +98,25 @@ jobs:
       # failures. REVI_DIGEST_WEBHOOK_URL is unset until Phase 5.1 (tunnel)
       # exists, so this step will fail on a real dispatch until then -- that
       # is expected, not a bug: there is nowhere for it to reach yet.
+      # revi/docs/observability-part-a.md: promote-pr.sh's own outcome/
+      # escalation_reason (PR_READY) take priority over the wrapper's when
+      # both exist -- PR_READY means a PR actually got opened, a more
+      # specific fact than "the gate passed." validated/model never change
+      # after the wrapper step, so those always read from steps.wrapper.
       - name: Report digest entry
         if: always()
         env:
           REVI_DIGEST_WEBHOOK_URL: ${{ secrets.REVI_DIGEST_WEBHOOK_URL }}
           REVI_WEBHOOK_SECRET: ${{ secrets.REVI_WEBHOOK_SECRET }}
-          OUTCOME: ${{ steps.wrapper.outputs.outcome || 'FAILED' }}
+          OUTCOME: ${{ steps.promote.outputs.outcome || steps.wrapper.outputs.outcome || 'FAILED' }}
           SUMMARY: ${{ steps.wrapper.outputs.summary || 'Hermes repair loop step did not produce an outcome' }}
+          VALIDATED: ${{ steps.wrapper.outputs.validated || 'false' }}
+          MERGED: ${{ steps.promote.outputs.merged || 'false' }}
+          ESCALATION_REASON: ${{ steps.promote.outputs.escalation_reason || steps.wrapper.outputs.escalation_reason || '' }}
+          ATTEMPTS: ${{ steps.wrapper.outputs.attempts_made || '' }}
+          FAILURE_STAGE: ${{ steps.promote.outputs.failure_stage || steps.wrapper.outputs.failure_stage || '' }}
+          FAILURE_CLASSIFICATION: ${{ steps.promote.outputs.failure_classification || steps.wrapper.outputs.failure_classification || '' }}
+          MODEL: ${{ steps.wrapper.outputs.model || '' }}
         run: bash scripts/report-digest.sh
 
   # AUTONOMOUS is the narrow positive match -- only exact "AUTONOMOUS" routes
@@ -220,6 +232,12 @@ jobs:
         run: bash scripts/autonomous-promote.sh
       # Phase 3.3: same always()-guarded digest report as pr_review -- see
       # comment there re: REVI_DIGEST_WEBHOOK_URL depending on Phase 5.1.
+      # revi/docs/observability-part-a.md: same chaining pattern as the
+      # existing OUTCOME line -- whichever of promote/smoke/wrapper actually
+      # ran and hit a failure is the one with a non-empty
+      # escalation_reason/failure_stage/failure_classification. validated
+      # and model never change after the wrapper step; merged is only ever
+      # set true by autonomous-promote.sh's own successful-merge branch.
       - name: Report digest entry
         if: always()
         env:
@@ -227,4 +245,11 @@ jobs:
           REVI_WEBHOOK_SECRET: ${{ secrets.REVI_WEBHOOK_SECRET }}
           OUTCOME: ${{ steps.promote.outputs.outcome || steps.smoke.outputs.outcome || steps.wrapper.outputs.outcome || 'FAILED' }}
           SUMMARY: ${{ steps.wrapper.outputs.summary || 'Hermes repair loop step did not produce an outcome' }}
+          VALIDATED: ${{ steps.wrapper.outputs.validated || 'false' }}
+          MERGED: ${{ steps.promote.outputs.merged || 'false' }}
+          ESCALATION_REASON: ${{ steps.promote.outputs.escalation_reason || steps.smoke.outputs.escalation_reason || steps.wrapper.outputs.escalation_reason || '' }}
+          ATTEMPTS: ${{ steps.wrapper.outputs.attempts_made || '' }}
+          FAILURE_STAGE: ${{ steps.promote.outputs.failure_stage || steps.smoke.outputs.failure_stage || steps.wrapper.outputs.failure_stage || '' }}
+          FAILURE_CLASSIFICATION: ${{ steps.promote.outputs.failure_classification || steps.smoke.outputs.failure_classification || steps.wrapper.outputs.failure_classification || '' }}
+          MODEL: ${{ steps.wrapper.outputs.model || '' }}
         run: bash scripts/report-digest.sh

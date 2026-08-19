@@ -76,7 +76,12 @@ if ! (cd "$MANIFEST_DIR" && eval "$TEST_COMMAND"); then
     "$API/git/refs/heads/$BRANCH" > /dev/null
 
   escalate "REGRESSION" "$CONFIDENCE_NOTE"
-  echo "outcome=FAILED" >> "${GITHUB_OUTPUT:-/dev/null}"
+  {
+    echo "outcome=FAILED"
+    echo "escalation_reason=REGRESSION"
+    echo "failure_stage=regression_test"
+    echo "failure_classification=remediation_failure"
+  } >> "${GITHUB_OUTPUT:-/dev/null}"
   exit 1
 fi
 
@@ -110,7 +115,18 @@ if [[ "$HTTP_CODE" != 2* ]]; then
   # branch is deliberately left in place so a human can inspect/manually
   # merge it after investigating why the API call itself failed.
   escalate "REGRESSION" "$CONFIDENCE_NOTE (merge API rejected: HTTP $HTTP_CODE)"
-  echo "outcome=FAILED" >> "${GITHUB_OUTPUT:-/dev/null}"
+  {
+    echo "outcome=FAILED"
+    echo "escalation_reason=REGRESSION"
+    echo "failure_stage=merge"
+    # infrastructure_failure, not remediation_failure: every code-quality
+    # gate already passed here (build/lint/test-quality plus the full test
+    # grid) -- the API call itself was rejected (pending status check,
+    # conflict, transient GitHub issue), which is a supporting-infra
+    # problem, not evidence Hermes's fix was wrong (revi/docs/
+    # observability-part-a.md metric #12).
+    echo "failure_classification=infrastructure_failure"
+  } >> "${GITHUB_OUTPUT:-/dev/null}"
   exit 1
 fi
 
@@ -123,5 +139,8 @@ except Exception:
 ' <<< "$BODY")"
 
 echo "autonomous-promote: merged $BRANCH into main (sha: ${MERGE_SHA:-n/a})"
-echo "outcome=MERGED" >> "${GITHUB_OUTPUT:-/dev/null}"
-echo "merge_sha=$MERGE_SHA" >> "${GITHUB_OUTPUT:-/dev/null}"
+{
+  echo "outcome=MERGED"
+  echo "merge_sha=$MERGE_SHA"
+  echo "merged=true"
+} >> "${GITHUB_OUTPUT:-/dev/null}"

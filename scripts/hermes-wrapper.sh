@@ -277,6 +277,35 @@ while [[ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]]; do
   echo "attempt $ATTEMPT: gate failed"
 done
 
+# Observability write path (revi/docs/observability-part-a.md): validated
+# reflects whether THIS gate -- compile/lint/test-quality, the one TRD calls
+# "Re:vi's own gate" -- passed, independent of what a later AUTONOMOUS-only
+# check (smoke/regression) does with it. merged is never true from here; only
+# autonomous-promote.sh's own successful-merge branch sets it. model is
+# parsed straight out of REVI_AGENT_COMMAND (the --model flag value) rather
+# than hardcoded, so a future override still reports correctly.
+VALIDATED="false"
+MERGED="false"
+ESCALATION_REASON=""
+FAILURE_STAGE=""
+FAILURE_CLASSIFICATION=""
+MODEL=""
+read -ra _AGENT_CMD_PARTS <<< "$REVI_AGENT_COMMAND"
+for _i in "${!_AGENT_CMD_PARTS[@]}"; do
+  if [[ "${_AGENT_CMD_PARTS[$_i]}" == "--model" ]]; then
+    MODEL="${_AGENT_CMD_PARTS[$((_i + 1))]}"
+    break
+  fi
+done
+
+if [[ "$OUTCOME" == "PASSED" ]]; then
+  VALIDATED="true"
+else
+  ESCALATION_REASON="EXHAUSTION"
+  FAILURE_STAGE="patch_generation"
+  FAILURE_CLASSIFICATION="remediation_failure"
+fi
+
 {
   echo "outcome=$OUTCOME"
   echo "attempts_made=$ATTEMPT"
@@ -285,6 +314,12 @@ done
   echo "test_framework=$GATE_FRAMEWORK"
   echo "test_command=$GATE_TEST_COMMAND"
   echo "manifest_dir=$GATE_MANIFEST_DIR"
+  echo "validated=$VALIDATED"
+  echo "merged=$MERGED"
+  echo "escalation_reason=$ESCALATION_REASON"
+  echo "failure_stage=$FAILURE_STAGE"
+  echo "failure_classification=$FAILURE_CLASSIFICATION"
+  echo "model=$MODEL"
 } >> "${GITHUB_OUTPUT:-/dev/null}"
 
 if [[ "$OUTCOME" == "PASSED" ]]; then

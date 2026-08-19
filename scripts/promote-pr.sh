@@ -96,4 +96,13 @@ ALERT_ID="$ALERT_ID" \
 PR_URL="$PR_URL" \
 bash "$SCRIPT_DIR/escalate.sh"
 
-echo "pr_url=$PR_URL" >> "${GITHUB_OUTPUT:-/dev/null}"
+# revi/docs/observability-part-a.md: outcome=PR_READY (not the wrapper's
+# generic PASSED) so the digest reflects that a PR actually got opened, not
+# just that the gate passed. escalation_reason=PR_READY mirrors the same
+# value already sent to the escalation webhook above -- PR_READY is a
+# success-page, not a failure, despite living in the same reason enum.
+{
+  echo "pr_url=$PR_URL"
+  echo "outcome=PR_READY"
+  echo "escalation_reason=PR_READY"
+} >> "${GITHUB_OUTPUT:-/dev/null}"

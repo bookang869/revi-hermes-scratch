@@ -60,7 +60,12 @@ if [[ "$BOOTED" -eq 1 ]]; then
 fi
 
 echo "smoke-test: app did not become healthy within ${BUDGET_SECONDS}s" >&2
-echo "outcome=FAILED" >> "${GITHUB_OUTPUT:-/dev/null}"
+{
+  echo "outcome=FAILED"
+  echo "escalation_reason=APP_BOOT_FAILURE"
+  echo "failure_stage=boot"
+  echo "failure_classification=remediation_failure"
+} >> "${GITHUB_OUTPUT:-/dev/null}"
 
 SERVICE_NAME="$SERVICE_NAME" \
 SEVERITY="critical" \
