@@ -10,6 +10,8 @@ set -euo pipefail
 : "${REVI_MODE:?REVI_MODE is required}"
 : "${OUTCOME:?OUTCOME is required}"
 : "${SUMMARY:?SUMMARY is required}"
+: "${SERVICE_NAME:?SERVICE_NAME is required}"
+: "${ERROR_SUMMARY:?ERROR_SUMMARY is required}"
 
 export DIGEST_DATE="${DIGEST_DATE:-$(date -u +%Y-%m-%d)}"
 
@@ -47,6 +49,12 @@ payload = {
     "failure_stage": os.environ["FAILURE_STAGE"],
     "failure_classification": os.environ["FAILURE_CLASSIFICATION"],
     "model": os.environ["MODEL"],
+    # Lets the Gateway release this run's flap lock the moment this report
+    # lands, instead of waiting out the lock's TTL backstop (revi
+    # gateway/internal/digest/handler.go, 2026-08-19 release-on-completion).
+    # Both values have been sitting in the environment the whole run.
+    "service_name": os.environ["SERVICE_NAME"],
+    "error_summary": os.environ["ERROR_SUMMARY"],
 }
 attempts = os.environ["ATTEMPTS"]
 if attempts:
