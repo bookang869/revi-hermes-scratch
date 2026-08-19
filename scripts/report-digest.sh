@@ -49,8 +49,8 @@ payload = {
     "failure_stage": os.environ["FAILURE_STAGE"],
     "failure_classification": os.environ["FAILURE_CLASSIFICATION"],
     "model": os.environ["MODEL"],
-    # Lets the Gateway release this run's flap lock the moment this report
-    # lands, instead of waiting out the lock's TTL backstop (revi
+    # Lets the Gateway release the flap lock for this run the moment this
+    # report lands, instead of waiting out the lock TTL backstop (revi
     # gateway/internal/digest/handler.go, 2026-08-19 release-on-completion).
     # Both values have been sitting in the environment the whole run.
     "service_name": os.environ["SERVICE_NAME"],
