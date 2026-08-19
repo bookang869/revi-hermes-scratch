@@ -146,13 +146,26 @@ jobs:
           CONFIDENCE_NOTE: ${{ steps.wrapper.outputs.confidence_note }}
           ATTEMPTS_MADE: ${{ steps.wrapper.outputs.attempts_made }}
         run: bash scripts/promote-pr.sh
+      # revi/docs/observability-part-a.md: mirrors hermes-triage.yml's own
+      # pr_review digest step field-for-field (found missing here 2026-08-19
+      # during a rehearsal run whose row landed with validated_at NULL and
+      # outcome='PASSED' instead of 'PR_READY' -- this step was only ever
+      # forwarding OUTCOME/SUMMARY, so report-digest.sh's defaults
+      # (VALIDATED=false, etc.) silently applied to every rehearsal run).
       - name: Report digest entry
         if: always()
         env:
           REVI_DIGEST_WEBHOOK_URL: ${{ secrets.REVI_DIGEST_WEBHOOK_URL }}
           REVI_WEBHOOK_SECRET: ${{ secrets.REVI_WEBHOOK_SECRET }}
-          OUTCOME: ${{ steps.wrapper.outputs.outcome || 'FAILED' }}
+          OUTCOME: ${{ steps.promote.outputs.outcome || steps.wrapper.outputs.outcome || 'FAILED' }}
           SUMMARY: ${{ steps.wrapper.outputs.summary || 'Hermes repair loop step did not produce an outcome' }}
+          VALIDATED: ${{ steps.wrapper.outputs.validated || 'false' }}
+          MERGED: ${{ steps.promote.outputs.merged || 'false' }}
+          ESCALATION_REASON: ${{ steps.promote.outputs.escalation_reason || steps.wrapper.outputs.escalation_reason || '' }}
+          ATTEMPTS: ${{ steps.wrapper.outputs.attempts_made || '' }}
+          FAILURE_STAGE: ${{ steps.promote.outputs.failure_stage || steps.wrapper.outputs.failure_stage || '' }}
+          FAILURE_CLASSIFICATION: ${{ steps.promote.outputs.failure_classification || steps.wrapper.outputs.failure_classification || '' }}
+          MODEL: ${{ steps.wrapper.outputs.model || '' }}
         run: bash scripts/report-digest.sh
 
   autonomous:
@@ -252,6 +265,9 @@ jobs:
           TEST_COMMAND: ${{ github.event.inputs.test_command_override != '' && github.event.inputs.test_command_override || steps.wrapper.outputs.test_command }}
           MANIFEST_DIR: ${{ steps.wrapper.outputs.manifest_dir }}
         run: bash scripts/autonomous-promote.sh
+      # revi/docs/observability-part-a.md: mirrors hermes-triage.yml's own
+      # autonomous digest step field-for-field -- see the same-named comment
+      # in the pr_review job above for why this was missing before.
       - name: Report digest entry
         if: always()
         env:
@@ -259,4 +275,11 @@ jobs:
           REVI_WEBHOOK_SECRET: ${{ secrets.REVI_WEBHOOK_SECRET }}
           OUTCOME: ${{ steps.promote.outputs.outcome || steps.smoke.outputs.outcome || steps.wrapper.outputs.outcome || 'FAILED' }}
           SUMMARY: ${{ steps.wrapper.outputs.summary || 'Hermes repair loop step did not produce an outcome' }}
+          VALIDATED: ${{ steps.wrapper.outputs.validated || 'false' }}
+          MERGED: ${{ steps.promote.outputs.merged || 'false' }}
+          ESCALATION_REASON: ${{ steps.promote.outputs.escalation_reason || steps.smoke.outputs.escalation_reason || steps.wrapper.outputs.escalation_reason || '' }}
+          ATTEMPTS: ${{ steps.wrapper.outputs.attempts_made || '' }}
+          FAILURE_STAGE: ${{ steps.promote.outputs.failure_stage || steps.smoke.outputs.failure_stage || steps.wrapper.outputs.failure_stage || '' }}
+          FAILURE_CLASSIFICATION: ${{ steps.promote.outputs.failure_classification || steps.smoke.outputs.failure_classification || steps.wrapper.outputs.failure_classification || '' }}
+          MODEL: ${{ steps.wrapper.outputs.model || '' }}
         run: bash scripts/report-digest.sh
