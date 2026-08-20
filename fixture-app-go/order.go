@@ -11,10 +11,14 @@ type Order struct {
 	Amount   int
 }
 
-// Summarize is deliberately buggy: it dereferences o.Customer without
-// checking for nil, so an Order with no Customer attached panics with
-// "invalid memory address or nil pointer dereference" -- this is the seeded
-// bug used to test the Phase 3.5 repair loop end-to-end.
+// Summarize previously dereferenced o.Customer without checking for nil, so
+// an Order with no Customer attached panicked with "invalid memory address
+// or nil pointer dereference". Fixed to fall back to "Unknown customer"
+// when o.Customer is nil.
 func Summarize(o *Order) string {
-	return fmt.Sprintf("%s owes %d", o.Customer.Name, o.Amount)
+	name := "Unknown customer"
+	if o.Customer != nil {
+		name = o.Customer.Name
+	}
+	return fmt.Sprintf("%s owes %d", name, o.Amount)
 }
