@@ -8,12 +8,14 @@
 #
 # On a full pass: commits + force-pushes hermes/hotfix-[alert-id] with
 # GITHUB_TOKEN_HERMES, runs the project's full test suite from
-# MANIFEST_DIR, and if that also passes, creates the merge commit into main
-# via the GitHub REST API's "merge a branch" endpoint using
-# GITHUB_TOKEN_PROD. Corrected 2026-08-03 (TRD Sec 5): this endpoint does
-# NOT produce an auto-"Verified"/signed commit -- that was an earlier
-# unconfirmed assumption, empirically falsified. No GPG key is used either
-# way; the merge is a plain, unsigned commit like any other API-created one.
+# MANIFEST_DIR, and if that also passes, creates the merge commit into
+# MERGE_TARGET (env, defaults to "main" -- see below; every real run leaves
+# it unset, so this is always main in production) via the GitHub REST API's
+# "merge a branch" endpoint using GITHUB_TOKEN_PROD. Corrected 2026-08-03
+# (TRD Sec 5): this endpoint does NOT produce an auto-"Verified"/signed
+# commit -- that was an earlier unconfirmed assumption, empirically
+# falsified. No GPG key is used either way; the merge is a plain, unsigned
+# commit like any other API-created one.
 #
 # On a test-grid failure: abandon the workspace (never attempt the merge),
 # force-delete the just-pushed hotfix branch, escalate REGRESSION/critical --
@@ -41,6 +43,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 API="${GITHUB_API_BASE_URL:-https://api.github.com}/repos/$GITHUB_REPOSITORY"
 BRANCH="hermes/hotfix-$ALERT_ID"
 export BRANCH
+# Benchmark-only (revi/docs/observability-part-b.md): MERGE_TARGET is unset
+# or empty on every real run, so this resolves to "main" exactly as before
+# -- ${VAR:-default} treats "set but empty" the same as "unset", which
+# matters here since a workflow env var sourced from an absent
+# client_payload field comes through as "" (empty), not literally unset.
+# Only a benchmark harness ever overrides this, to a per-fault integration
+# branch it resets before every trial, so independent repeat-trial fixes
+# never collide with each other on the same lines of a shared branch (see
+# the finding this fixes: two independently-worded correct fixes for the
+# same seeded bug produce a near-guaranteed git merge conflict against a
+# branch that already holds a prior trial's differently-worded fix).
+MERGE_TARGET="${MERGE_TARGET:-main}"
+export MERGE_TARGET
 HERMES_AUTH_HEADER="Authorization: Bearer $GITHUB_TOKEN_HERMES"
 PROD_AUTH_HEADER="Authorization: Bearer $GITHUB_TOKEN_PROD"
 
@@ -88,14 +103,15 @@ if ! (cd "$MANIFEST_DIR" && eval "$TEST_COMMAND"); then
   exit 1
 fi
 
-echo "=== Test grid passed -- merging $BRANCH into main via GitHub REST API ==="
+echo "=== Test grid passed -- merging $BRANCH into $MERGE_TARGET via GitHub REST API ==="
 MERGE_PAYLOAD="$(python3 -c '
 import json, os, sys
 alert_id = os.environ["ALERT_ID"]
 summary = os.environ["SUMMARY"]
 branch = os.environ["BRANCH"]
+merge_target = os.environ["MERGE_TARGET"]
 json.dump({
-    "base": "main",
+    "base": merge_target,
     "head": branch,
     "commit_message": f"Hermes autonomous fix: {summary} (alert {alert_id})",
 }, sys.stdout)

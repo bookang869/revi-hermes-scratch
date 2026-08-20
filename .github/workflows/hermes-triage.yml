@@ -40,9 +40,15 @@ jobs:
       # 2026-08-03 testing PLAN 4.4 against the real API). Checkout itself
       # still authenticates fine to clone/fetch; it just doesn't leave
       # credentials behind afterward.
+      # ref: benchmark-only (revi/docs/observability-part-b.md), empty on
+      # every real alert -- an empty string is actions/checkout's own
+      # "use the default branch" behavior, so this is a no-op for
+      # production traffic. Only a benchmark harness ever sets it, to check
+      # out a fault's fixed base_ref tag instead of main.
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: ${{ github.event.client_payload.ref }}
       - name: Confirm routing
         run: echo "mode routed to PR_REVIEW (raw client_payload.mode='${{ github.event.client_payload.mode }}')"
       - name: Confirm Hermes preinstalled
@@ -142,6 +148,13 @@ jobs:
       ERROR_SUMMARY: ${{ github.event.client_payload.error_summary }}
       LOG_CONTEXT: ${{ github.event.client_payload.log_context }}
       REVI_MODE: AUTONOMOUS
+      # Benchmark-only (revi/docs/observability-part-b.md), empty on every
+      # real alert -- autonomous-promote.sh treats an empty value as "main"
+      # (unchanged behavior). Only a benchmark harness ever sets it, to a
+      # per-fault integration branch it resets before every trial, so
+      # independent repeat-trial fixes never collide with each other on the
+      # same lines of a shared branch.
+      MERGE_TARGET: ${{ github.event.client_payload.merge_target }}
     steps:
       # persist-credentials: false -- checkout's default leaves its own
       # http.extraheader (default GITHUB_TOKEN) configured in the local git
@@ -151,9 +164,13 @@ jobs:
       # 2026-08-03 testing PLAN 4.4 against the real API). Checkout itself
       # still authenticates fine to clone/fetch; it just doesn't leave
       # credentials behind afterward.
+      # ref: benchmark-only (revi/docs/observability-part-b.md), empty on
+      # every real alert -- see the same-named comment in the pr_review job
+      # above for why this is a no-op for production traffic.
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: ${{ github.event.client_payload.ref }}
       - name: Confirm routing
         run: echo "mode routed to AUTONOMOUS"
       # PLAN 6.5: multiple fixture apps (Go, Rust, Node/TS, Python) now

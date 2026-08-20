@@ -47,7 +47,7 @@ assert_not_contains() {
 # (seeded with a merge http status/sha), and a mock escalation receiver,
 # then runs autonomous-promote.sh and echoes everything the assertions need.
 run_scenario() {
-  local name="$1" test_command="$2" merge_http_status="$3"
+  local name="$1" test_command="$2" merge_http_status="$3" merge_target="${4:-}"
   echo ""
   echo "=== scenario: $name ==="
 
@@ -81,6 +81,7 @@ run_scenario() {
     export ERROR_SUMMARY="invalid memory address or nil pointer dereference"
     export SUMMARY="fixed the nil check" CONFIDENCE_NOTE="high" ATTEMPTS_MADE="1"
     export TEST_COMMAND="$test_command" MANIFEST_DIR="$repo"
+    [[ -n "$merge_target" ]] && export MERGE_TARGET="$merge_target"
     export REVI_ESCALATION_WEBHOOK_URL="http://127.0.0.1:$recv_port"
     export REVI_ESCALATION_WEBHOOK_SECRET="autonomous-test-secret"
     export GITHUB_OUTPUT="$gh_output"
@@ -129,6 +130,15 @@ assert_not_contains "$API_LOG" "DELETE_REF_CALLED" "C: branch left in place for 
 assert_eq "$OUTCOME_OUTPUT" "FAILED" "C: outcome output"
 assert_contains "$ESCALATION_PAYLOAD" "\"reason\": \"MERGE_REJECTED\"" "C: escalation reason"
 assert_contains "$ESCALATION_PAYLOAD" "\"severity\": \"critical\"" "C: escalation severity"
+
+### Scenario D (revi/docs/observability-part-b.md): MERGE_TARGET override
+### merges into a benchmark integration branch instead of main -- proves
+### the default-to-main behavior above isn't the only path this can take.
+run_scenario "benchmark-target" "true" "201" "benchmark/go-nil-deref-01"
+assert_eq "$PROMOTE_EXIT" "0" "D: autonomous-promote.sh exit code"
+assert_contains "$API_LOG" "\"base\": \"benchmark/go-nil-deref-01\"" "D: merge targets the override, not main"
+assert_not_contains "$API_LOG" "\"base\": \"main\"" "D: merge does not silently fall back to main"
+assert_eq "$OUTCOME_OUTPUT" "MERGED" "D: outcome output"
 
 echo ""
 if [[ "$FAILURES" -eq 0 ]]; then
