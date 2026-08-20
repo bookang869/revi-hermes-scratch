@@ -39,6 +39,32 @@ case "$SERVICE_NAME" in
     echo "REVI_HEALTH_URL=http://localhost:8080/healthz"
     echo "FIXTURE_APP_DIR=fixture-app-python"
     ;;
+  # Distinct from the rehearsal-* entries above though the boot mechanics
+  # are identical -- these are for bookang869/Re-vi's Part B benchmark
+  # (docs/observability-part-b.md in that repo), a different test mechanism
+  # than hermes-rehearsal.yml. Kept separate so service_name alone tells a
+  # human reading the data which mechanism produced a row, without also
+  # having to check fault_id.
+  fixture-app-go)
+    echo "REVI_BOOT_COMMAND=cd fixture-app-go && go run ."
+    echo "REVI_HEALTH_URL=http://localhost:8080/healthz"
+    echo "FIXTURE_APP_DIR=fixture-app-go"
+    ;;
+  fixture-app-rust)
+    echo "REVI_BOOT_COMMAND=cd fixture-app-rust && cargo run"
+    echo "REVI_HEALTH_URL=http://localhost:8080/healthz"
+    echo "FIXTURE_APP_DIR=fixture-app-rust"
+    ;;
+  fixture-app-node)
+    echo "REVI_BOOT_COMMAND=cd fixture-app-node && node server.js"
+    echo "REVI_HEALTH_URL=http://localhost:8080/healthz"
+    echo "FIXTURE_APP_DIR=fixture-app-node"
+    ;;
+  fixture-app-python)
+    echo "REVI_BOOT_COMMAND=cd fixture-app-python && python3 server.py"
+    echo "REVI_HEALTH_URL=http://localhost:8080/healthz"
+    echo "FIXTURE_APP_DIR=fixture-app-python"
+    ;;
   *)
     echo "resolve-boot-command: no boot command mapped for service '$SERVICE_NAME'" >&2
     exit 1
