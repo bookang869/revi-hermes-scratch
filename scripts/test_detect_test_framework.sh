@@ -50,7 +50,7 @@ mkdir -p "$TMP/l2-cargo/src"
 touch "$TMP/l2-cargo/Cargo.toml"
 touch "$TMP/l2-cargo/src/main.rs"
 run_case "L2 cargo" "$TMP/l2-cargo" "src/main.rs" "" \
-  "LAYER=L2" "TEST_FRAMEWORK=cargo" "TEST_COMMAND=cargo test" "TEST_FILE_SUFFIX=_test.rs"
+  "LAYER=L2" "TEST_FRAMEWORK=cargo" "TEST_COMMAND=cargo test" "TEST_FILE_SUFFIX=_test.rs" "TEST_FILE_PREFIX=tests/"
 
 mkdir -p "$TMP/l2-jest/src/components"
 touch "$TMP/l2-jest/package.json"
@@ -62,7 +62,7 @@ mkdir -p "$TMP/l2-pytest/app"
 touch "$TMP/l2-pytest/requirements.txt"
 touch "$TMP/l2-pytest/app/models.py"
 run_case "L2 pytest" "$TMP/l2-pytest" "app/models.py" "" \
-  "LAYER=L2" "TEST_FRAMEWORK=pytest" "TEST_COMMAND=pytest" "TEST_FILE_SUFFIX=_test.py"
+  "LAYER=L2" "TEST_FRAMEWORK=pytest" "TEST_COMMAND=pytest" "TEST_FILE_SUFFIX=_test.py" "TEST_FILE_PREFIX="
 
 ### L2 monorepo: nearest-to-crashed-file must win over a decoy root manifest
 mkdir -p "$TMP/monorepo/backend/internal/handlers"

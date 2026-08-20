@@ -10,7 +10,33 @@ WRAPPER="$SCRIPT_DIR/hermes-wrapper.sh"
 FAKE_AGENT="$SCRIPT_DIR/fake-agent.sh"
 
 FAILURES=0
+SKIPS=0
 RECEIVER_PORT=8770
+
+# Scenarios that exercise cargo/clippy or tsc/eslint/jest gates need those
+# toolchains on PATH -- present in the CI-baked image (Dockerfile installs
+# cargo/rust-clippy/nodejs/npm + `npm install -g typescript eslint jest`),
+# but not guaranteed on a bare dev machine. Skip (don't fail) rather than
+# report a false "command not found" failure -- see revi-hermes-target#8.
+require_cmds() {
+  local missing=() c
+  for c in "$@"; do
+    command -v "$c" >/dev/null 2>&1 || missing+=("$c")
+  done
+  if [[ "${#missing[@]}" -gt 0 ]]; then
+    echo "${missing[*]}"
+    return 1
+  fi
+  return 0
+}
+
+skip_scenario() {
+  local name="$1" missing="$2"
+  echo ""
+  echo "=== scenario: $name ==="
+  echo "SKIP: $name -- missing required command(s) on PATH: $missing"
+  SKIPS=$((SKIPS + 1))
+}
 
 assert_eq() {
   local actual="$1" expected="$2" label="$3"
@@ -163,61 +189,91 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
+CARGO_MISSING="$(require_cmds cargo cargo-clippy)" && CARGO_OK=1 || CARGO_OK=0
+
 ### Scenario J: cargo path, full pass -- proves PLAN 6.5's generalized gate
 ### (build+lint+test dispatch off the manifest cargo resolves, not go-only)
-run_scenario "rust-succeed" "PR_REVIEW" 'export FAKE_AGENT_MODE=rust_succeed' "fixture-app-rust"
-assert_eq "$OUTCOME" "PASSED" "J: outcome (cargo build+clippy+test all pass)"
-assert_eq "$ATTEMPTS" "1" "J: attempts_made"
+if [[ "$CARGO_OK" -eq 1 ]]; then
+  run_scenario "rust-succeed" "PR_REVIEW" 'export FAKE_AGENT_MODE=rust_succeed' "fixture-app-rust"
+  assert_eq "$OUTCOME" "PASSED" "J: outcome (cargo build+clippy+test all pass)"
+  assert_eq "$ATTEMPTS" "1" "J: attempts_made"
+else
+  skip_scenario "rust-succeed (J)" "$CARGO_MISSING"
+fi
 
 ### Scenario K: cargo build failure -- proves the never-before-exercised
 ### cargo build gate actually rejects a non-compiling patch.
-run_scenario "rust-build-failure-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=rust_fail_broken_compile' "fixture-app-rust"
-assert_eq "$OUTCOME" "FAILED" "K: outcome (cargo build failure must not pass)"
-assert_eq "$ATTEMPTS" "3" "K: attempts_made"
+if [[ "$CARGO_OK" -eq 1 ]]; then
+  run_scenario "rust-build-failure-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=rust_fail_broken_compile' "fixture-app-rust"
+  assert_eq "$OUTCOME" "FAILED" "K: outcome (cargo build failure must not pass)"
+  assert_eq "$ATTEMPTS" "3" "K: attempts_made"
+else
+  skip_scenario "rust-build-failure-rejected (K)" "$CARGO_MISSING"
+fi
 
 ### Scenario L: compiles, test passes, but `cargo clippy` flags an unrelated
 ### len()==0 comparison -- PLAN 6.2's lint gate, cargo slice.
-run_scenario "rust-lint-violation-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=rust_fail_lint_violation' "fixture-app-rust"
-assert_eq "$OUTCOME" "FAILED" "L: outcome (cargo clippy failure must not pass)"
-assert_eq "$ATTEMPTS" "3" "L: attempts_made"
-assert_eq "$ESCALATED" "1" "L: escalation sent exactly once"
+if [[ "$CARGO_OK" -eq 1 ]]; then
+  run_scenario "rust-lint-violation-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=rust_fail_lint_violation' "fixture-app-rust"
+  assert_eq "$OUTCOME" "FAILED" "L: outcome (cargo clippy failure must not pass)"
+  assert_eq "$ATTEMPTS" "3" "L: attempts_made"
+  assert_eq "$ESCALATED" "1" "L: escalation sent exactly once"
 
-run_scenario "rust-lint-violation-rejected-autonomous" "AUTONOMOUS" 'export FAKE_AGENT_MODE=rust_fail_lint_violation' "fixture-app-rust"
-assert_eq "$OUTCOME" "FAILED" "L2: outcome (cargo clippy violation blocks AUTONOMOUS the same as a failed test)"
-if grep -q '"severity": "critical"' <<< "$ESCALATION_PAYLOAD"; then
-  echo "PASS: L2: escalation payload severity=critical"
+  run_scenario "rust-lint-violation-rejected-autonomous" "AUTONOMOUS" 'export FAKE_AGENT_MODE=rust_fail_lint_violation' "fixture-app-rust"
+  assert_eq "$OUTCOME" "FAILED" "L2: outcome (cargo clippy violation blocks AUTONOMOUS the same as a failed test)"
+  if grep -q '"severity": "critical"' <<< "$ESCALATION_PAYLOAD"; then
+    echo "PASS: L2: escalation payload severity=critical"
+  else
+    echo "FAIL: L2: escalation payload wrong: $ESCALATION_PAYLOAD"
+    FAILURES=$((FAILURES + 1))
+  fi
 else
-  echo "FAIL: L2: escalation payload wrong: $ESCALATION_PAYLOAD"
-  FAILURES=$((FAILURES + 1))
+  skip_scenario "rust-lint-violation-rejected (L)" "$CARGO_MISSING"
+  skip_scenario "rust-lint-violation-rejected-autonomous (L2)" "$CARGO_MISSING"
 fi
+
+NODE_MISSING="$(require_cmds tsc eslint jest)" && NODE_OK=1 || NODE_OK=0
 
 ### Scenario M: jest path, full pass -- proves PLAN 6.5's generalized gate
 ### (tsc build + eslint lint + jest test dispatch off the manifest jest
 ### resolves, not go/cargo-only)
-run_scenario "node-succeed" "PR_REVIEW" 'export FAKE_AGENT_MODE=node_succeed' "fixture-app-node"
-assert_eq "$OUTCOME" "PASSED" "M: outcome (tsc+eslint+jest all pass)"
-assert_eq "$ATTEMPTS" "1" "M: attempts_made"
+if [[ "$NODE_OK" -eq 1 ]]; then
+  run_scenario "node-succeed" "PR_REVIEW" 'export FAKE_AGENT_MODE=node_succeed' "fixture-app-node"
+  assert_eq "$OUTCOME" "PASSED" "M: outcome (tsc+eslint+jest all pass)"
+  assert_eq "$ATTEMPTS" "1" "M: attempts_made"
+else
+  skip_scenario "node-succeed (M)" "$NODE_MISSING"
+fi
 
 ### Scenario N: tsc build failure -- proves the never-before-exercised tsc
 ### --noEmit gate actually rejects a non-parsing patch.
-run_scenario "node-build-failure-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=node_fail_broken_compile' "fixture-app-node"
-assert_eq "$OUTCOME" "FAILED" "N: outcome (tsc build failure must not pass)"
-assert_eq "$ATTEMPTS" "3" "N: attempts_made"
+if [[ "$NODE_OK" -eq 1 ]]; then
+  run_scenario "node-build-failure-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=node_fail_broken_compile' "fixture-app-node"
+  assert_eq "$OUTCOME" "FAILED" "N: outcome (tsc build failure must not pass)"
+  assert_eq "$ATTEMPTS" "3" "N: attempts_made"
+else
+  skip_scenario "node-build-failure-rejected (N)" "$NODE_MISSING"
+fi
 
 ### Scenario O: compiles, test passes, but eslint flags an unrelated `==`
 ### comparison -- PLAN 6.2's lint gate, jest slice.
-run_scenario "node-lint-violation-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=node_fail_lint_violation' "fixture-app-node"
-assert_eq "$OUTCOME" "FAILED" "O: outcome (eslint failure must not pass)"
-assert_eq "$ATTEMPTS" "3" "O: attempts_made"
-assert_eq "$ESCALATED" "1" "O: escalation sent exactly once"
+if [[ "$NODE_OK" -eq 1 ]]; then
+  run_scenario "node-lint-violation-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=node_fail_lint_violation' "fixture-app-node"
+  assert_eq "$OUTCOME" "FAILED" "O: outcome (eslint failure must not pass)"
+  assert_eq "$ATTEMPTS" "3" "O: attempts_made"
+  assert_eq "$ESCALATED" "1" "O: escalation sent exactly once"
 
-run_scenario "node-lint-violation-rejected-autonomous" "AUTONOMOUS" 'export FAKE_AGENT_MODE=node_fail_lint_violation' "fixture-app-node"
-assert_eq "$OUTCOME" "FAILED" "O2: outcome (eslint violation blocks AUTONOMOUS the same as a failed test)"
-if grep -q '"severity": "critical"' <<< "$ESCALATION_PAYLOAD"; then
-  echo "PASS: O2: escalation payload severity=critical"
+  run_scenario "node-lint-violation-rejected-autonomous" "AUTONOMOUS" 'export FAKE_AGENT_MODE=node_fail_lint_violation' "fixture-app-node"
+  assert_eq "$OUTCOME" "FAILED" "O2: outcome (eslint violation blocks AUTONOMOUS the same as a failed test)"
+  if grep -q '"severity": "critical"' <<< "$ESCALATION_PAYLOAD"; then
+    echo "PASS: O2: escalation payload severity=critical"
+  else
+    echo "FAIL: O2: escalation payload wrong: $ESCALATION_PAYLOAD"
+    FAILURES=$((FAILURES + 1))
+  fi
 else
-  echo "FAIL: O2: escalation payload wrong: $ESCALATION_PAYLOAD"
-  FAILURES=$((FAILURES + 1))
+  skip_scenario "node-lint-violation-rejected (O)" "$NODE_MISSING"
+  skip_scenario "node-lint-violation-rejected-autonomous (O2)" "$NODE_MISSING"
 fi
 
 ### Scenario P: pytest path, full pass -- proves PLAN 6.5's generalized gate
@@ -298,6 +354,16 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
+### Scenario Z: cargo path, *_test.rs file written but placed in src/, not
+### tests/ -- proves the TEST_FILE_PREFIX check (PLAN 6.9 audit) rejects a
+### suffix-only match outside Cargo's actual integration-test convention.
+### Not gated behind CARGO_OK, like S above: this rejects at the file-check
+### stage, before run_gate() ever reaches the `cargo build` case, so no
+### toolchain is actually required to exercise it.
+run_scenario "rust-test-wrong-subdir-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=rust_fail_test_wrong_subdir' "fixture-app-rust"
+assert_eq "$OUTCOME" "FAILED" "Z: outcome (test file outside tests/ must not pass)"
+assert_eq "$ATTEMPTS" "3" "Z: attempts_made"
+
 ### Scenario Y: pytest path, a stray workspace-root file sorts alphabetically
 ### before the fixture dir -- reproduces the live rehearsal bug (2026-08-19)
 ### where find_manifest_dir's git-status-order heuristic walked from the
@@ -309,9 +375,13 @@ assert_eq "$ATTEMPTS" "1" "Y: attempts_made"
 
 echo ""
 if [[ "$FAILURES" -eq 0 ]]; then
-  echo "ALL PASS"
+  if [[ "$SKIPS" -gt 0 ]]; then
+    echo "ALL PASS ($SKIPS SKIPPED)"
+  else
+    echo "ALL PASS"
+  fi
   exit 0
 else
-  echo "$FAILURES FAILURE(S)"
+  echo "$FAILURES FAILURE(S), $SKIPS SKIPPED"
   exit 1
 fi

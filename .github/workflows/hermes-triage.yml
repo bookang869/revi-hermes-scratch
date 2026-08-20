@@ -214,8 +214,9 @@ jobs:
       # Phase 4.2/4.3 (TRD FR-05): push hermes/hotfix-[alert-id], run the
       # project's full existing test suite (reusing the framework/manifest
       # dir the wrapper already detected), and on a full pass create the
-      # merge commit into main via the GitHub REST API (GITHUB_TOKEN_PROD,
-      # auto-"Verified", no GPG key). Any test-grid failure abandons the
+      # merge commit into main via the GitHub REST API (GITHUB_TOKEN_PROD).
+      # Not an auto-"Verified"/signed commit and no GPG key is used --
+      # corrected 2026-08-03, TRD Sec 5. Any test-grid failure abandons the
       # workspace, force-deletes the branch, and escalates
       # REGRESSION/critical -- main stays untouched either way.
       - name: AUTONOMOUS promotion

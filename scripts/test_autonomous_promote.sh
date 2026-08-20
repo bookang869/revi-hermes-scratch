@@ -127,7 +127,7 @@ assert_eq "$PROMOTE_EXIT" "1" "C: autonomous-promote.sh exit code"
 assert_contains "$API_LOG" "MERGE_PAYLOAD" "C: merge API call attempted"
 assert_not_contains "$API_LOG" "DELETE_REF_CALLED" "C: branch left in place for manual inspection"
 assert_eq "$OUTCOME_OUTPUT" "FAILED" "C: outcome output"
-assert_contains "$ESCALATION_PAYLOAD" "\"reason\": \"REGRESSION\"" "C: escalation reason"
+assert_contains "$ESCALATION_PAYLOAD" "\"reason\": \"MERGE_REJECTED\"" "C: escalation reason"
 assert_contains "$ESCALATION_PAYLOAD" "\"severity\": \"critical\"" "C: escalation severity"
 
 echo ""

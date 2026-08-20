@@ -128,7 +128,7 @@ find_manifest_dir() {
 
 # Gates one attempt. Returns 0 (pass) or 1 (fail); prints the reason to stderr.
 run_gate() {
-  local framework="$1" test_command="$2" test_file_suffix="$3"
+  local framework="$1" test_command="$2" test_file_suffix="$3" test_file_prefix="$4"
 
   if [[ "$framework" == "none" ]]; then
     return 0  # L3: no automated gate; PR_REVIEW human review is the safety net
@@ -155,13 +155,22 @@ run_gate() {
   # never match a real tests/order_test.rs -- caught by scenario J
   # regressing to FAILED once Cargo's suffix went from empty to non-empty.
   if [[ -n "$test_file_suffix" ]]; then
-    local manifest_rel changed_files
+    local manifest_rel changed_files match_anchor
     manifest_rel="${manifest_dir#"$GITHUB_WORKSPACE"}"
     manifest_rel="${manifest_rel#/}"
     changed_files="$(git -C "$GITHUB_WORKSPACE" status --porcelain --untracked-files=all | awk '{print $NF}')"
     [[ -n "$manifest_rel" ]] && changed_files="$(grep -- "^${manifest_rel}/" <<< "$changed_files")"
-    if ! grep -q -- "${test_file_suffix}\$" <<< "$changed_files"; then
-      echo "gate: no changed file under $manifest_dir matching *$test_file_suffix -- test not written" >&2
+    # test_file_prefix (Cargo only, "tests/") additionally requires the
+    # match sit in that subdirectory relative to manifest_dir -- a bare
+    # suffix match alone would also accept e.g. src/order_test.rs, which
+    # `cargo test` wouldn't even discover (PLAN 6.9 audit, 2026-08-20).
+    if [[ -n "$manifest_rel" ]]; then
+      match_anchor="^${manifest_rel}/${test_file_prefix}"
+    else
+      match_anchor="^${test_file_prefix}"
+    fi
+    if ! grep -q -- "${match_anchor}.*${test_file_suffix}\$" <<< "$changed_files"; then
+      echo "gate: no changed file under $manifest_dir/${test_file_prefix} matching *$test_file_suffix -- test not written" >&2
       return 1
     fi
   fi
@@ -282,8 +291,9 @@ while [[ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]]; do
   fi
   TEST_COMMAND="$(grep '^TEST_COMMAND=' <<< "$FRAMEWORK_INFO" | cut -d= -f2-)"
   TEST_FILE_SUFFIX="$(grep '^TEST_FILE_SUFFIX=' <<< "$FRAMEWORK_INFO" | cut -d= -f2-)"
+  TEST_FILE_PREFIX="$(grep '^TEST_FILE_PREFIX=' <<< "$FRAMEWORK_INFO" | cut -d= -f2-)"
 
-  if run_gate "$EFFECTIVE_FRAMEWORK" "$TEST_COMMAND" "$TEST_FILE_SUFFIX"; then
+  if run_gate "$EFFECTIVE_FRAMEWORK" "$TEST_COMMAND" "$TEST_FILE_SUFFIX" "$TEST_FILE_PREFIX"; then
     OUTCOME="PASSED"
     GATE_FRAMEWORK="$EFFECTIVE_FRAMEWORK"
     GATE_TEST_COMMAND="$TEST_COMMAND"

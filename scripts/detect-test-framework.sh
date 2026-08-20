@@ -13,32 +13,39 @@ set -euo pipefail
 : "${REPO_ROOT:?REPO_ROOT is required}"
 : "${CRASHED_FILE:?CRASHED_FILE is required}"
 
-# framework|test command|sibling test file suffix. Cargo's suffix targets
-# its tests/ integration-test directory (e.g. tests/order_test.rs), not an
-# in-crate #[cfg(test)] mod -- the only Cargo convention that's a genuinely
-# separate file the same way Go/Jest/pytest's sibling files are (PLAN 6.5
-# follow-up, 2026-08-17; grepped for by find_manifest_dir/run_gate against
-# the crate root, which tests/ still sits under).
+# framework|test command|sibling test file suffix|required path prefix
+# (relative to manifest_dir; empty means "anywhere under manifest_dir").
+# Cargo's suffix targets its tests/ integration-test directory (e.g.
+# tests/order_test.rs), not an in-crate #[cfg(test)] mod -- the only Cargo
+# convention that's a genuinely separate file the same way Go/Jest/pytest's
+# sibling files are (PLAN 6.5 follow-up, 2026-08-17). The suffix alone
+# doesn't rule out a same-named file sitting elsewhere in the crate (e.g.
+# src/order_test.rs, which cargo test wouldn't even discover) -- the
+# required prefix (added 2026-08-20, PLAN 6.9 audit) closes that gap; only
+# Cargo needs one since it's the only convention whose separate-file
+# location is a specific subdirectory rather than "wherever the fixed file
+# lives".
 # "none" is a valid override too (Phase 3.5): it lets the wrapper feed back
 # Hermes's own self-reported "no framework applies" verdict through the same
 # code path as a real L1 override, rather than needing a second lookup table.
 profile() {
   case "$1" in
-    go)     echo "go|go test ./...|_test.go" ;;
-    cargo)  echo "cargo|cargo test|_test.rs" ;;
-    jest)   echo "jest|npx jest|.test.js" ;;
-    pytest) echo "pytest|pytest|_test.py" ;;
-    none)   echo "none|exit 0|" ;;
+    go)     echo "go|go test ./...|_test.go|" ;;
+    cargo)  echo "cargo|cargo test|_test.rs|tests/" ;;
+    jest)   echo "jest|npx jest|.test.js|" ;;
+    pytest) echo "pytest|pytest|_test.py|" ;;
+    none)   echo "none|exit 0||" ;;
     *)      return 1 ;;
   esac
 }
 
 emit() {
-  local layer="$1" framework cmd suffix
-  IFS='|' read -r framework cmd suffix <<< "$2"
+  local layer="$1" framework cmd suffix prefix
+  IFS='|' read -r framework cmd suffix prefix <<< "$2"
   echo "TEST_FRAMEWORK=$framework"
   echo "TEST_COMMAND=$cmd"
   echo "TEST_FILE_SUFFIX=$suffix"
+  echo "TEST_FILE_PREFIX=$prefix"
   echo "LAYER=$layer"
 }
 
@@ -71,4 +78,5 @@ done
 echo "TEST_FRAMEWORK=none"
 echo "TEST_COMMAND=exit 0"
 echo "TEST_FILE_SUFFIX="
+echo "TEST_FILE_PREFIX="
 echo "LAYER=L3"

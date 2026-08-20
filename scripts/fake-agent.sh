@@ -453,6 +453,41 @@ RUST
     echo '{"confidence_note": "Fixed it", "summary": "Matched on Option", "test_framework": "cargo"}'
     ;;
 
+  rust_fail_test_wrong_subdir)
+    # Real fix + a real *_test.rs file -- but placed in src/, not tests/.
+    # cargo test wouldn't even discover it there (it's not declared as a
+    # module), and it's not the genuinely-separate-file convention TRD
+    # names for Cargo. Proves the TEST_FILE_PREFIX check (PLAN 6.9 audit,
+    # 2026-08-20) rejects a suffix-only match outside tests/, the same way
+    # scenario G already proves for a test file outside manifest_dir
+    # entirely.
+    cat > "$APP_DIR/src/order.rs" <<'RUST'
+pub struct Customer {
+    pub name: String,
+}
+
+pub struct Order {
+    pub customer: Option<Customer>,
+    pub amount: i64,
+}
+
+pub fn summarize(o: &Order) -> String {
+    match &o.customer {
+        Some(c) => format!("{} owes {}", c.name, o.amount),
+        None => format!("unknown customer owes {}", o.amount),
+    }
+}
+RUST
+    cat > "$APP_DIR/src/order_test.rs" <<'RUST'
+// Never declared as a module -- cargo wouldn't compile or run this.
+#[test]
+fn summarize_nil_customer() {
+    assert!(true);
+}
+RUST
+    echo '{"confidence_note": "High confidence: matched on Option<Customer>", "summary": "Fixed unwrap-on-None panic in summarize", "test_framework": "cargo"}'
+    ;;
+
   rust_fail_vacuous_test)
     # Real fix, real passing test -- but the test only exercises the
     # already-working "Some(Customer)" path, never the None case that was

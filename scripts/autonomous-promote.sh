@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# AUTONOMOUS promotion: existing test grid + API-signed merge to main
-# (TRD FR-05, PLAN 4.2/4.3). Called only after hermes-wrapper.sh's gate AND
-# smoke-test.sh have both passed. Reuses the framework/manifest_dir the
-# wrapper already detected (TEST_COMMAND/MANIFEST_DIR env, sourced from
+# AUTONOMOUS promotion: existing test grid + merge to main via the GitHub
+# REST API (TRD FR-05, PLAN 4.2/4.3). Called only after hermes-wrapper.sh's
+# gate AND smoke-test.sh have both passed. Reuses the framework/manifest_dir
+# the wrapper already detected (TEST_COMMAND/MANIFEST_DIR env, sourced from
 # steps.wrapper.outputs in the workflow) rather than re-detecting -- this is
 # a single-service repo per TRD Sec 2.
 #
@@ -10,7 +10,10 @@
 # GITHUB_TOKEN_HERMES, runs the project's full test suite from
 # MANIFEST_DIR, and if that also passes, creates the merge commit into main
 # via the GitHub REST API's "merge a branch" endpoint using
-# GITHUB_TOKEN_PROD -- auto-"Verified", no GPG key to manage (TRD Sec 5).
+# GITHUB_TOKEN_PROD. Corrected 2026-08-03 (TRD Sec 5): this endpoint does
+# NOT produce an auto-"Verified"/signed commit -- that was an earlier
+# unconfirmed assumption, empirically falsified. No GPG key is used either
+# way; the merge is a plain, unsigned commit like any other API-created one.
 #
 # On a test-grid failure: abandon the workspace (never attempt the merge),
 # force-delete the just-pushed hotfix branch, escalate REGRESSION/critical --
@@ -106,18 +109,19 @@ BODY="$(sed '$d' <<< "$RESPONSE")"
 
 if [[ "$HTTP_CODE" != 2* ]]; then
   echo "autonomous-promote: merge API returned $HTTP_CODE: $BODY" >&2
-  # ponytail: TRD's reason enum (PR_READY/APP_BOOT_FAILURE/REGRESSION/
-  # EXHAUSTION) has no dedicated code for "every gate passed but the API
-  # merge call itself was rejected" (e.g. a still-pending required status
-  # check, an unexpected conflict). Reusing REGRESSION here as the closest
-  # existing semantic -- both mean "a change that looked safe could not
-  # actually be landed." Unlike the test-grid-failure path above, the
-  # branch is deliberately left in place so a human can inspect/manually
-  # merge it after investigating why the API call itself failed.
-  escalate "REGRESSION" "$CONFIDENCE_NOTE (merge API rejected: HTTP $HTTP_CODE)"
+  # MERGE_REJECTED (added 2026-08-20, PLAN 6.9 audit): every gate already
+  # passed here (build/lint/test-quality plus the full test grid) -- the
+  # API merge call itself was rejected (e.g. a still-pending required
+  # status check, an unexpected conflict). Previously reused REGRESSION,
+  # which is misleading: a real REGRESSION means the fix is bad and its
+  # branch gets force-deleted; here the branch is deliberately left in
+  # place so a human can inspect/manually merge it after investigating why
+  # the API call itself failed. A paged human needs to tell these apart
+  # from the reason alone, not by reading into the confidence note.
+  escalate "MERGE_REJECTED" "$CONFIDENCE_NOTE (merge API rejected: HTTP $HTTP_CODE)"
   {
     echo "outcome=FAILED"
-    echo "escalation_reason=REGRESSION"
+    echo "escalation_reason=MERGE_REJECTED"
     echo "failure_stage=merge"
     # infrastructure_failure, not remediation_failure: every code-quality
     # gate already passed here (build/lint/test-quality plus the full test
