@@ -1,8 +1,9 @@
-# summarize is deliberately buggy: it accesses order.customer.name without
+# summarize used to be buggy: it accessed order.customer.name without
 # checking whether customer is present, so an Order with no Customer
-# attached raises AttributeError -- this is the seeded bug used to test the
-# repair loop end-to-end (mirrors the Go/Rust/Node fixture apps'
-# order.go/order.rs/order.js).
+# attached raised AttributeError -- this was the seeded bug used to test
+# the repair loop end-to-end (mirrors the Go/Rust/Node fixture apps'
+# order.go/order.rs/order.js). Fixed by falling back to a placeholder name
+# when no customer is attached instead of dereferencing None.
 
 
 class Customer:
@@ -17,4 +18,5 @@ class Order:
 
 
 def summarize(order):
-    return f"{order.customer.name} owes {order.amount}"
+    name = order.customer.name if order.customer is not None else "Unknown customer"
+    return f"{name} owes {order.amount}"
