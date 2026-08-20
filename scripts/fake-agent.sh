@@ -657,6 +657,43 @@ PY
     echo '{"confidence_note": "High confidence: guarded on order.customer before dereferencing", "summary": "Fixed AttributeError on None customer in summarize", "test_framework": "pytest"}'
     ;;
 
+  python_succeed_stray_file_first)
+    # Same as python_succeed, but also touches a workspace-root file whose
+    # name sorts alphabetically before the fixture dir -- reproduces the live
+    # rehearsal failure (2026-08-19) where find_manifest_dir's old
+    # first-changed-file heuristic walked from that stray file's directory
+    # (the workspace root) instead of the fixture app, and never found
+    # requirements.txt because the walk only goes up, not down into
+    # subdirectories. Proves the FIXTURE_APP_DIR anchor fix resolves it.
+    echo "unrelated scratch note" > "$GITHUB_WORKSPACE/AAA_scratch_notes.txt"
+    cat > "$APP_DIR/order.py" <<'PY'
+class Customer:
+    def __init__(self, name):
+        self.name = name
+
+
+class Order:
+    def __init__(self, customer=None, amount=0):
+        self.customer = customer
+        self.amount = amount
+
+
+def summarize(order):
+    if order.customer is None:
+        return f"unknown customer owes {order.amount}"
+    return f"{order.customer.name} owes {order.amount}"
+PY
+    cat > "$APP_DIR/order_test.py" <<'PY'
+from order import Order, summarize
+
+
+def test_summarize_nil_customer():
+    got = summarize(Order(amount=42))
+    assert got == "unknown customer owes 42"
+PY
+    echo '{"confidence_note": "High confidence: guarded on order.customer before dereferencing", "summary": "Fixed AttributeError on None customer in summarize", "test_framework": "pytest"}'
+    ;;
+
   python_fail_broken_compile)
     # Test file written, but the "fix" does not even parse.
     cat > "$APP_DIR/order.py" <<'PY'

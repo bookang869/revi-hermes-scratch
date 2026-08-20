@@ -35,7 +35,7 @@ error_summary: $ERROR_SUMMARY
 log_context:
 $LOG_CONTEXT
 
-Find the file responsible for this crash and fix it. Unless test_framework is "none", also write a sibling test file (same directory as the fixed file, matching the ecosystem's naming convention) that fails before your fix and passes after it -- do not skip this. $framework_instruction
+Find the file responsible for this crash and fix it. Unless test_framework is "none", also write a sibling test file (same directory as the fixed file) that fails before your fix and passes after it -- do not skip this. Name it using exactly this suffix convention, not any other valid convention for the language: Go -> <name>_test.go, Rust -> tests/<name>_test.rs, Jest -> <name>.test.js, pytest -> <name>_test.py (e.g. fixing order.py means writing order_test.py, not test_order.py). $framework_instruction
 
 When done, respond with ONLY a single literal JSON object, no surrounding prose, matching exactly this schema:
 {"confidence_note": "string", "summary": "string", "test_framework": "string"}
@@ -80,17 +80,41 @@ manifest_for() {
   esac
 }
 
-# Ties the gate to what Hermes actually changed rather than a repo-wide
-# guess: walks up from the directory of the first file git shows as changed
-# to find the nearest manifest. Self-verifying -- doesn't require Hermes to
-# report a path, since the wrapper already inspects git status for the
-# test-file check below. awk '{print $NF}' (not $2) also gets renamed files
-# right -- `R  old -> new` puts the new path last.
-# ponytail: takes the first changed file only; a single attempt spanning two
-# components (unlikely -- the prompt asks for a co-located sibling test
-# file) would gate on just one. Fine for a single-service repo/fixture.
+# Prefers walking up from FIXTURE_APP_DIR (the service's own app directory,
+# already resolved from SERVICE_NAME by resolve-boot-command.sh and trusted
+# elsewhere in the pipeline for booting/smoke-testing it) when set -- this is
+# a known-correct anchor, unlike guessing from git status order below.
+# Falls back to walking up from the first file git shows as changed when
+# FIXTURE_APP_DIR is unset or its walk doesn't find the manifest. That
+# fallback is self-verifying (doesn't require Hermes to report a path, since
+# the wrapper already inspects git status for the test-file check below) but
+# fragile on its own: git status order isn't tied to which file the fix
+# actually lives in, so a single attempt spanning two directories (e.g. a
+# stray file touched outside the fixture app) can walk from the wrong one --
+# caught live 2026-08-19 during a real rehearsal run, where attempt 1 failed
+# "no requirements.txt found" despite fixture-app-python/requirements.txt
+# existing. awk '{print $NF}' (not $2) gets renamed files right -- `R  old ->
+# new` puts the new path last.
 find_manifest_dir() {
-  local manifest="$1" changed_file dir
+  local manifest="$1" changed_file dir anchor
+
+  if [[ -n "${FIXTURE_APP_DIR:-}" ]]; then
+    # Accepts either form: production passes a GITHUB_WORKSPACE-relative
+    # path (matching resolve-boot-command.sh's other outputs); the local
+    # test harness (test_hermes_wrapper.sh) passes an absolute path since
+    # fake-agent.sh writes fixture files directly from it.
+    anchor="$FIXTURE_APP_DIR"
+    [[ "$anchor" != /* ]] && anchor="$GITHUB_WORKSPACE/$anchor"
+    if [[ -d "$anchor" ]]; then
+      dir="$(cd "$anchor" && pwd)"
+      while :; do
+        [[ -f "$dir/$manifest" ]] && { echo "$dir"; return 0; }
+        [[ "$dir" == "$GITHUB_WORKSPACE" ]] && break
+        dir="$(dirname "$dir")"
+      done
+    fi
+  fi
+
   changed_file="$(git -C "$GITHUB_WORKSPACE" status --porcelain --untracked-files=all | awk '{print $NF}' | head -1)"
   [[ -z "$changed_file" ]] && return 1
 

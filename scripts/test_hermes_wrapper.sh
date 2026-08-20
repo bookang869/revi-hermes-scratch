@@ -298,6 +298,15 @@ else
   FAILURES=$((FAILURES + 1))
 fi
 
+### Scenario Y: pytest path, a stray workspace-root file sorts alphabetically
+### before the fixture dir -- reproduces the live rehearsal bug (2026-08-19)
+### where find_manifest_dir's git-status-order heuristic walked from the
+### wrong directory and never found requirements.txt. Proves the
+### FIXTURE_APP_DIR anchor fix resolves it in one attempt.
+run_scenario "python-stray-file-first-still-resolves" "AUTONOMOUS" 'export FAKE_AGENT_MODE=python_succeed_stray_file_first' "fixture-app-python"
+assert_eq "$OUTCOME" "PASSED" "Y: outcome (stray file elsewhere must not block manifest resolution)"
+assert_eq "$ATTEMPTS" "1" "Y: attempts_made"
+
 echo ""
 if [[ "$FAILURES" -eq 0 ]]; then
   echo "ALL PASS"
