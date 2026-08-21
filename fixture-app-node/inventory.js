@@ -1,10 +1,8 @@
 const http = require("http");
 
-// checkInventory is deliberately buggy: it forwards the downstream
-// inventory service's response as if it were always a successful 200
-// lookup, regardless of the actual status code it got back -- this is
-// the seeded bug used to test the repair loop end-to-end (mirrors the
-// Go/Rust/Python fixture apps' dependency faults).
+// checkInventory forwards the downstream inventory service's response
+// status verbatim, instead of always reporting 200 -- this mirrors the
+// Go/Rust/Python fixture apps' dependency faults, now fixed.
 /**
  * @param {string} sku
  * @returns {Promise<{status: number, body: string}>}
@@ -20,7 +18,7 @@ function checkInventory(sku) {
           body += chunk;
         });
         resp.on("end", () => {
-          resolve({ status: 200, body });
+          resolve({ status: resp.statusCode || 502, body });
         });
       });
       req.on("error", () => {
