@@ -5,7 +5,7 @@ use std::collections::HashMap;
 /// 11) -> 990 (11x100, 10% off).
 pub fn bulk_discount(unit_price: i64, qty: i64) -> i64 {
     let total = unit_price * qty;
-    if qty > 10 {
+    if qty >= 10 {
         total * 90 / 100
     } else {
         total
