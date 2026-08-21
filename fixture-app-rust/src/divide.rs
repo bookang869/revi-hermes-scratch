@@ -2,8 +2,12 @@ use crate::http_util;
 use std::collections::HashMap;
 
 /// Splits a shared total evenly across a number of participants, e.g.
-/// divide_share(100, 4) -> 25.
+/// divide_share(100, 4) -> 25. Returns 0 when parts is 0 (no participants
+/// to split across) rather than panicking on a divide-by-zero.
 pub fn divide_share(total: i64, parts: i64) -> i64 {
+    if parts == 0 {
+        return 0;
+    }
     total / parts
 }
 
