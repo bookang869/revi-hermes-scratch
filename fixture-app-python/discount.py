@@ -4,6 +4,6 @@
 
 def bulk_discount(unit_price, qty):
     total = unit_price * qty
-    if qty >= 10:
+    if qty > 10:
         total = total * 90 // 100
     return total
