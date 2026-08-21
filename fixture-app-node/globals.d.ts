@@ -6,6 +6,10 @@
 // external dependency to build the fixture apps).
 declare function require(id: string): any;
 declare const module: { exports: any };
+// Same TS2591-style gap as require()/module above, hit for the first time
+// authoring the Part B fault corpus (config.js/inventory.js's process.env
+// reads) -- no @types/node means no ambient `process` global either.
+declare const process: any;
 
 // TypeScript special-cases require() calls whose argument string literal
 // matches a known Node core module name (e.g. "http") and emits a
