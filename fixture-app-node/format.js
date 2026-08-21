@@ -1,17 +1,12 @@
+// formatOrder is deliberately buggy: it accepts and echoes back negative
+// amounts instead of rejecting them with 400 -- this is the seeded bug
+// used to test the repair loop end-to-end (mirrors the Go/Rust/Python
+// fixture apps' bad-validation faults).
 /**
- * formatOrder returns a JSON view of an order's amount, rejecting
- * negative amounts with (400, ...) rather than echoing back a
- * nonsensical order.
  * @param {number} amount
  * @returns {{status: number, body: string}}
  */
 function formatOrder(amount) {
-  if (amount < 0) {
-    return {
-      status: 400,
-      body: JSON.stringify({ error: "amount must be non-negative" }),
-    };
-  }
   return { status: 200, body: JSON.stringify({ amount, currency: "USD" }) };
 }
 
