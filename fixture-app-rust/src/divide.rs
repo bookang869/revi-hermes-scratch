@@ -2,13 +2,21 @@ use crate::http_util;
 use std::collections::HashMap;
 
 /// Splits a shared total evenly across a number of participants, e.g.
-/// divide_share(100, 4) -> 25.
-pub fn divide_share(total: i64, parts: i64) -> i64 {
-    total / parts
+/// divide_share(100, 4) -> 25. Returns None when `parts` is zero instead of
+/// panicking, since a zero-participant split has no valid answer.
+pub fn divide_share(total: i64, parts: i64) -> Option<i64> {
+    if parts == 0 {
+        None
+    } else {
+        Some(total / parts)
+    }
 }
 
 pub fn handle(query: &HashMap<String, String>) -> (u16, String) {
     let total = http_util::query_i64(query, "total");
     let parts = http_util::query_i64(query, "parts");
-    (200, divide_share(total, parts).to_string())
+    match divide_share(total, parts) {
+        Some(share) => (200, share.to_string()),
+        None => (400, "parts must not be zero".to_string()),
+    }
 }
