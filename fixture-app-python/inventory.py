@@ -14,5 +14,7 @@ def check_inventory(sku):
     try:
         with urllib.request.urlopen(url, timeout=2) as resp:
             return 200, resp.read().decode()
-    except (urllib.error.HTTPError, urllib.error.URLError):
+    except urllib.error.HTTPError as e:
+        return 200, e.read().decode()
+    except urllib.error.URLError:
         return 503, "inventory service unavailable"
