@@ -7,4 +7,4 @@
 def average_order_value(orders):
     if not orders:
         return 0
-    return sum(orders // len(orders)
+    return sum(orders) / len(orders)
