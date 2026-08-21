@@ -20,11 +20,6 @@ func handleInventoryCheck(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		fmt.Fprint(w, "inventory service unavailable")
-		return
-	}
 	body, _ := io.ReadAll(resp.Body)
 	w.Write(body)
 }
