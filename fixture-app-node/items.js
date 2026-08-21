@@ -1,16 +1,17 @@
 const CATALOG_ITEMS = ["widget", "gadget", "gizmo"];
 
+// catalogItem is deliberately buggy: it calls toUpperCase() on the raw
+// indexed lookup without checking whether the index was in range, so an
+// out-of-range index throws "Cannot read properties of undefined
+// (reading 'toUpperCase')" -- this is the seeded bug used to test the
+// repair loop end-to-end (mirrors the Go/Rust/Python fixture apps'
+// out-of-range faults).
 /**
- * catalogItem returns the uppercased catalog item name at the requested
- * index, or undefined if the index is out of range -- checked before
- * calling toUpperCase() so an out-of-range index doesn't crash with
- * "Cannot read properties of undefined (reading 'toUpperCase')".
  * @param {number} index
  * @returns {string | undefined}
  */
 function catalogItem(index) {
-  const item = CATALOG_ITEMS[index];
-  return item === undefined ? undefined : item.toUpperCase();
+  return CATALOG_ITEMS[index].toUpperCase();
 }
 
 module.exports = { catalogItem };
