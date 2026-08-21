@@ -15,11 +15,6 @@ type orderView struct {
 // negative amounts with 400 rather than echoing back a nonsensical order.
 func handleFormatOrder(w http.ResponseWriter, r *http.Request) {
 	amount, _ := strconv.Atoi(r.URL.Query().Get("amount"))
-	if amount < 0 {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "amount must be non-negative"})
-		return
-	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(orderView{Amount: amount, Currency: "USD"})
 }
