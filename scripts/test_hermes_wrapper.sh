@@ -157,6 +157,18 @@ assert_eq "$OUTCOME" "FAILED" "E: outcome"
 assert_eq "$ATTEMPTS" "3" "E: attempts_made"
 assert_eq "$ESCALATED" "1" "E: escalation sent exactly once"
 
+### Scenario E2: a real, well-formed JSON response whose summary/
+### confidence_note text itself contains literal "{"/"}" characters must
+### still be parsed correctly, not misreported as "malformed JSON". Found
+### 2026-08-21 live: extract_json's old regex stopped at the first brace it
+### saw regardless of whether it was inside a string, so this exact shape
+### (a fallback string like "{amount}", a JSON snippet in prose) silently
+### truncated to an unparseable fragment and burned a real attempt Hermes
+### never actually failed.
+run_scenario "succeed-with-braces-in-summary" "PR_REVIEW" 'export FAKE_AGENT_MODE=succeed_with_braces_in_summary'
+assert_eq "$OUTCOME" "PASSED" "E2: outcome (braces inside JSON string values must not break extraction)"
+assert_eq "$ATTEMPTS" "1" "E2: attempts_made"
+
 ### Scenario F: fixes the bug but never writes a test -- rejected, not trusted
 run_scenario "no-test-file-rejected" "PR_REVIEW" 'export FAKE_AGENT_MODE=fail_no_test'
 assert_eq "$OUTCOME" "FAILED" "F: outcome (fix without test must not pass)"

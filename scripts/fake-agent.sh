@@ -65,6 +65,53 @@ GO
     echo '{"confidence_note": "High confidence: added nil check on Order.Customer", "summary": "Fixed nil pointer dereference in Summarize", "test_framework": "go"}'
     ;;
 
+  succeed_with_braces_in_summary)
+    # Same real fix+test as `succeed`, but the summary/confidence_note text
+    # itself contains literal "{"/"}" characters -- e.g. describing a
+    # fallback string like 'unknown customer owes {amount}' or a JSON
+    # snippet -- the exact shape that broke extract_json's old regex (found
+    # 2026-08-21 running Part B's python-nil-deref-01/python-badvalidation-07
+    # live: their real summaries did this and got misreported as "malformed
+    # JSON" on every attempt, since the regex stopped at the first brace it
+    # saw regardless of whether it was inside a string). A real JSON parser
+    # scanning every "{" position must still find the outer object here.
+    cat > "$APP_DIR/order.go" <<'GO'
+package main
+
+import "fmt"
+
+type Customer struct {
+	Name string
+}
+
+type Order struct {
+	Customer *Customer
+	Amount   int
+}
+
+func Summarize(o *Order) string {
+	if o.Customer == nil {
+		return fmt.Sprintf("unknown customer owes %d", o.Amount)
+	}
+	return fmt.Sprintf("%s owes %d", o.Customer.Name, o.Amount)
+}
+GO
+    cat > "$APP_DIR/order_test.go" <<'GO'
+package main
+
+import "testing"
+
+func TestSummarize_NilCustomer(t *testing.T) {
+	got := Summarize(&Order{Amount: 42})
+	want := "unknown customer owes 42"
+	if got != want {
+		t.Errorf("Summarize() = %q, want %q", got, want)
+	}
+}
+GO
+    echo '{"confidence_note": "Verified by round-tripping the fix", "summary": "Added a nil check that returns a fallback string like {amount} owes -- see the JSON body shape {\"customer\": null} for context.", "test_framework": "go"}'
+    ;;
+
   fail_no_test)
     # Fixes the bug but never writes a test file -- must be rejected
     # regardless of go test passing, per PLAN's "AI fails to write the
