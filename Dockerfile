@@ -31,3 +31,21 @@ RUN pip3 install --break-system-packages pytest ruff
 RUN curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash -s -- --skip-browser --skip-setup
 
 ENV PATH="/root/.local/bin:${PATH}"
+
+# This container has no USER directive (runs as root), but GitHub Actions
+# container jobs bind-mount $GITHUB_WORKSPACE from the host runner, owned
+# by a different, non-root UID -- git's ownership check refuses to operate
+# on a directory it doesn't recognize as "ours" (root touching someone
+# else's files), failing every git command in the workspace with "fatal:
+# detected dubious ownership" until this exception is granted. --system
+# (not --global, which only covers root's own home dir / a specific repo)
+# so it's baked into the image itself and every consumer -- hermes-triage.yml,
+# hermes-rehearsal.yml, any future workflow -- gets it for free, instead of
+# each workflow needing its own copy of the same fix (hermes-triage.yml went
+# without one for a long time despite hermes-rehearsal.yml already having
+# hit and fixed this exact error, found 2026-08-21 tracing Part B's Python
+# batch silently losing attempt 1 of Hermes's 3-attempt budget on every run).
+# Wildcard is deliberate, confirmed with the user: this image only ever runs
+# one ephemeral, single-purpose CI job at a time, nothing else sensitive
+# shares it, so trusting any directory inside it carries no real added risk.
+RUN git config --system --add safe.directory '*'

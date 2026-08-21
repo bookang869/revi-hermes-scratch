@@ -49,6 +49,19 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event.client_payload.ref }}
+      # hermes-rehearsal.yml's own copy of this step claims this job
+      # doesn't need it because "Confirm Hermes preinstalled" (hermes
+      # --version) supposedly adds the safe.directory exception as a side
+      # effect -- that assumption is false. Every real AUTONOMOUS/PR_REVIEW
+      # dispatch was hitting "fatal: detected dubious ownership" inside
+      # hermes-wrapper.sh's own git status check (which decides whether
+      # Hermes wrote a sibling test file), silently burning one of Hermes's
+      # 3 budgeted attempts on every single run -- found 2026-08-21 tracing
+      # why Part B's Python batch exhausted more than expected. Confirmed
+      # via GH Actions logs across all 8 live Python trials plus an older
+      # Go-era run from the same day.
+      - name: Fix git safe.directory (container job)
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Confirm routing
         run: echo "mode routed to PR_REVIEW (raw client_payload.mode='${{ github.event.client_payload.mode }}')"
       - name: Confirm Hermes preinstalled
@@ -171,6 +184,10 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event.client_payload.ref }}
+      # See the same-named step in the pr_review job above for why this is
+      # needed despite hermes-rehearsal.yml's comment claiming otherwise.
+      - name: Fix git safe.directory (container job)
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Confirm routing
         run: echo "mode routed to AUTONOMOUS"
       # PLAN 6.5: multiple fixture apps (Go, Rust, Node/TS, Python) now
