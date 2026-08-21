@@ -1,12 +1,8 @@
 use crate::http_util;
 use std::collections::HashMap;
 
-/// Renders an order's amount as a JSON view, rejecting a negative amount
-/// rather than echoing back a nonsensical order.
+/// Renders an order's amount as a JSON view.
 pub fn format_order(amount: i64) -> Option<String> {
-    if amount < 0 {
-        return None;
-    }
     Some(format!("{{\"amount\":{amount},\"currency\":\"USD\"}}"))
 }
 
