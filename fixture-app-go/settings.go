@@ -14,9 +14,8 @@ import (
 func handleValidateOrder(w http.ResponseWriter, r *http.Request) {
 	max := 100000
 	if v := os.Getenv("MAX_ORDER_AMOUNT"); v != "" {
-		if parsed, err := strconv.Atoi(v); err == nil {
-			max = parsed
-		}
+		parsed, _ := strconv.Atoi(v)
+		max = parsed
 	}
 	amount, _ := strconv.Atoi(r.URL.Query().Get("amount"))
 	if amount > max {
