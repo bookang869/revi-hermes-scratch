@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 pub struct Customer {
     pub name: String,
 }
@@ -7,10 +9,21 @@ pub struct Order {
     pub amount: i64,
 }
 
-// summarize is deliberately buggy: it unwraps o.customer without checking
-// for None, so an Order with no Customer attached panics -- this is the
-// seeded bug used to test the repair loop end-to-end (mirrors the Go
-// fixture app's fixture-app/order.go).
+/// Summarizes an order, falling back to "Unknown customer" when no
+/// Customer is attached instead of dereferencing a None.
 pub fn summarize(o: &Order) -> String {
-    format!("{} owes {}", o.customer.as_ref().unwrap().name, o.amount)
+    let name = o
+        .customer
+        .as_ref()
+        .map(|c| c.name.as_str())
+        .unwrap_or("Unknown customer");
+    format!("{} owes {}", name, o.amount)
+}
+
+pub fn handle(_query: &HashMap<String, String>) -> (u16, String) {
+    let o = Order {
+        customer: None,
+        amount: 42,
+    };
+    (200, summarize(&o))
 }
