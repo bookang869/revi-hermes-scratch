@@ -1,17 +1,17 @@
+// maxOrderAmount is deliberately buggy: it returns parseInt()'s result
+// unchecked, so an invalid MAX_ORDER_AMOUNT (e.g. non-numeric) parses to
+// NaN -- and every subsequent `amount <= NaN` comparison in
+// validateOrder is always false, silently rejecting every order instead
+// of falling back to the documented 100000 default. This is the seeded
+// bug used to test the repair loop end-to-end (mirrors the Go/Rust/
+// Python fixture apps' config faults).
 /**
- * maxOrderAmount rejects orders over a configurable maximum, read from
- * MAX_ORDER_AMOUNT (defaults to 100000 if unset or unparsable -- an
- * invalid config value must fall back to the default, not silently
- * disable ordering entirely via a NaN comparison that's always false).
  * @returns {number}
  */
 function maxOrderAmount() {
   const raw = process.env.MAX_ORDER_AMOUNT;
   if (raw) {
-    const n = parseInt(raw, 10);
-    if (!Number.isNaN(n)) {
-      return n;
-    }
+    return parseInt(raw, 10);
   }
   return 100000;
 }
