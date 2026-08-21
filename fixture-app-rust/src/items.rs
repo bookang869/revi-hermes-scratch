@@ -3,12 +3,19 @@ use std::collections::HashMap;
 
 pub const CATALOG_ITEMS: [&str; 3] = ["widget", "gadget", "gizmo"];
 
-/// Returns the catalog item at `index`.
-pub fn catalog_item(index: i64) -> &'static str {
-    CATALOG_ITEMS[index as usize]
+/// Returns the catalog item at `index`, or `None` when `index` is out of
+/// bounds (negative or >= CATALOG_ITEMS.len()) instead of panicking.
+pub fn catalog_item(index: i64) -> Option<&'static str> {
+    if index < 0 {
+        return None;
+    }
+    CATALOG_ITEMS.get(index as usize).copied()
 }
 
 pub fn handle(query: &HashMap<String, String>) -> (u16, String) {
     let index = http_util::query_i64(query, "index");
-    (200, catalog_item(index).to_string())
+    match catalog_item(index) {
+        Some(item) => (200, item.to_string()),
+        None => (400, "index out of range".to_string()),
+    }
 }
