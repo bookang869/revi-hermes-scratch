@@ -12,7 +12,7 @@ func handleBulkDiscount(w http.ResponseWriter, r *http.Request) {
 	unitPrice, _ := strconv.Atoi(r.URL.Query().Get("unit_price"))
 	qty, _ := strconv.Atoi(r.URL.Query().Get("qty"))
 	total := unitPrice * qty
-	if qty > 10 {
+	if qty >= 10 {
 		total = total * 90 / 100
 	}
 	fmt.Fprintf(w, "%d", total)
