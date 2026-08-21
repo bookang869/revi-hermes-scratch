@@ -9,15 +9,9 @@ pub struct Order {
     pub amount: i64,
 }
 
-/// Summarizes an order, falling back to "Unknown customer" when no
-/// Customer is attached instead of dereferencing a None.
+/// Summarizes an order.
 pub fn summarize(o: &Order) -> String {
-    let name = o
-        .customer
-        .as_ref()
-        .map(|c| c.name.as_str())
-        .unwrap_or("Unknown customer");
-    format!("{} owes {}", name, o.amount)
+    format!("{} owes {}", o.customer.as_ref().unwrap().name, o.amount)
 }
 
 pub fn handle(_query: &HashMap<String, String>) -> (u16, String) {
