@@ -43,13 +43,39 @@ PROMPT
 }
 
 # Prompt asks for ONLY a JSON object, but be defensive: take the last
-# balanced-looking {...} block in case the agent adds prose anyway.
+# validly-parseable {...} object in case the agent adds prose anyway.
+#
+# Previously a regex (\{[^{}]*\}) that stopped at the first "{" or "}" it
+# saw, including ones inside a quoted string value -- so any fix whose own
+# summary/confidence_note prose mentioned a brace (a JSON snippet, a dict
+# literal, a "{placeholder}" format string -- all common when describing a
+# JSON-API fix) truncated to a tiny unparseable fragment and got misreported
+# as "malformed JSON", burning a real attempt Hermes never actually failed.
+# Found 2026-08-21 re-running Part B's Python faults: python-nil-deref-01
+# exhausted all 3 attempts this way (every one of its summaries repeated the
+# literal fallback string 'Unknown customer owes {amount}'), and
+# python-badvalidation-07 lost 2 of 3 to the same bug (summary described
+# returning '{"error": ...}'). A real JSON parser trying every "{" position
+# doesn't have this problem, since it respects string escaping/nesting.
 extract_json() {
   python3 -c '
-import re, sys
+import json, sys
 text = sys.stdin.read()
-matches = re.findall(r"\{[^{}]*\}", text, re.DOTALL)
-print(matches[-1] if matches else "")
+decoder = json.JSONDecoder()
+best = None
+idx = 0
+while True:
+    start = text.find("{", idx)
+    if start == -1:
+        break
+    try:
+        obj, end = decoder.raw_decode(text, start)
+        if isinstance(obj, dict):
+            best = text[start:end]
+    except ValueError:
+        pass
+    idx = start + 1
+print(best if best is not None else "")
 '
 }
 
