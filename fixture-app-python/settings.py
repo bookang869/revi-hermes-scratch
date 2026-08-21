@@ -12,7 +12,7 @@ def max_order_amount():
         try:
             return int(raw)
         except ValueError:
-            return 0
+            return 100000
     return 100000
 
 
