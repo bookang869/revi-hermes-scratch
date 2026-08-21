@@ -17,4 +17,6 @@ class Order:
 
 
 def summarize(order):
+    if order.customer is None:
+        return f"Unknown customer owes {order.amount}"
     return f"{order.customer.name} owes {order.amount}"
