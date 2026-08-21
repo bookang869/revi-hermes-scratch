@@ -10,5 +10,5 @@ func AverageOrderValue(orders []int) int {
 	for _, o := range orders {
 		total += o
 	}
-	return total / len(orders)
+	return total / len(order)
 }
