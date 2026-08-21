@@ -19,5 +19,6 @@ func main() {
 	http.HandleFunc("/inventory", handleInventoryCheck)
 	http.HandleFunc("/format-order", handleFormatOrder)
 	http.HandleFunc("/items", handleCatalogItem)
+	http.HandleFunc("/average", handleAverageOrderValue)
 	http.ListenAndServe(":8080", nil)
 }
