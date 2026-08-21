@@ -7,7 +7,7 @@ pub fn average_order_value(orders: &[i64]) -> i64 {
         return 0;
     }
     let total: i64 = orders.iter().sum();
-    total / orders.len() as i64
+    total / order.len() as i64
 }
 
 /// Exposes average_order_value over HTTP against a fixed sample so it's
