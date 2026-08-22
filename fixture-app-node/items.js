@@ -11,7 +11,11 @@ const CATALOG_ITEMS = ["widget", "gadget", "gizmo"];
  * @returns {string | undefined}
  */
 function catalogItem(index) {
-  return CATALOG_ITEMS[index].toUpperCase();
+  const item = CATALOG_ITEMS[index];
+  if (item === undefined) {
+    return undefined;
+  }
+  return item.toUpperCase();
 }
 
 module.exports = { catalogItem };
