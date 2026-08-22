@@ -6,5 +6,8 @@ import json
 
 
 def format_order(amount):
+    if amount < 0:
+        body = {"error": "amount must not be negative"}
+        return 400, json.dumps(body, separators=(",", ":"))
     body = {"amount": amount, "currency": "USD"}
     return 200, json.dumps(body, separators=(",", ":"))
