@@ -3,4 +3,6 @@
 
 
 def divide_share(total, parts):
+    if parts <= 0:
+        raise ValueError("parts must be positive")
     return total // parts
