@@ -7,5 +7,11 @@
     "noImplicitAny": false,
     "noEmit": true
   },
-  "include": ["**/*.js", "**/*.d.ts"]
+  "include": [
+    "**/*.js",
+    "**/*.d.ts"
+  ],
+  "exclude": [
+    "**/*.test.js"
+  ]
 }
