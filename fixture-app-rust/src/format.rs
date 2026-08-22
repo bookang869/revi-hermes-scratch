@@ -3,6 +3,9 @@ use std::collections::HashMap;
 
 /// Renders an order's amount as a JSON view.
 pub fn format_order(amount: i64) -> Option<String> {
+    if amount < 0 {
+        return None;
+    }
     Some(format!("{{\"amount\":{amount},\"currency\":\"USD\"}}"))
 }
 
