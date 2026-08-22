@@ -11,7 +11,12 @@ pub struct Order {
 
 /// Summarizes an order.
 pub fn summarize(o: &Order) -> String {
-    format!("{} owes {}", o.customer.as_ref().unwrap().name, o.amount)
+    let name = o
+        .customer
+        .as_ref()
+        .map(|c| c.name.as_str())
+        .unwrap_or("Unknown customer");
+    format!("{} owes {}", name, o.amount)
 }
 
 pub fn handle(_query: &HashMap<String, String>) -> (u16, String) {
