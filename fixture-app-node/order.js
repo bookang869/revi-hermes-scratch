@@ -13,7 +13,8 @@
  * @returns {string}
  */
 function summarize(order) {
-  return `${order.customer.name} owes ${order.amount}`;
+  const name = order.customer ? order.customer.name : "Unknown";
+  return `${name} owes ${order.amount}`;
 }
 
 module.exports = { summarize };
