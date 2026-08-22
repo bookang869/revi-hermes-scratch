@@ -6,4 +6,6 @@ CATALOG_ITEMS = ["widget", "gadget", "gizmo"]
 
 
 def catalog_item(index):
+    if index < 0 or index >= len(CATALOG_ITEMS):
+        return None
     return CATALOG_ITEMS[index]
