@@ -8,7 +8,7 @@ const DEFAULT_MAX_ORDER_AMOUNT: i64 = 100_000;
 /// documented default of 100000 when the var is unset.
 pub fn max_order_amount() -> i64 {
     match env::var("MAX_ORDER_AMOUNT") {
-        Ok(v) => v.parse::<i64>().unwrap_or(0),
+        Ok(v) => v.parse::<i64>().unwrap_or(DEFAULT_MAX_ORDER_AMOUNT),
         Err(_) => DEFAULT_MAX_ORDER_AMOUNT,
     }
 }
